@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Investor Questionnaire</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site-header">
+  <div class="site-header-inner">
+    <a href="/dashboard.html" class="site-logo">← Dashboard</a>
+    <nav class="site-nav">
+      <span id="save-status" style="font-size:12px;color:var(--text-muted);"></span>
+    </nav>
+  </div>
+</header>
+
+<div class="page">
+  <div class="step-header">
+    <p class="progress-label" id="progress-label">Step 1 of 8</p>
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:12.5%"></div></div>
+    <p class="step-tag" id="step-tag">General Information</p>
+    <h1 id="step-title">About the Investor</h1>
+  </div>
+
+  <div id="alert-banner" style="display:none;" class="alert alert-error"></div>
+
+  <!-- ── STEP 1: General Information ── -->
+  <div id="step-1" class="step-content">
+    <div class="card">
+      <div class="section-block">
+        <h3>Legal Identity</h3>
+        <div class="field">
+          <label class="label" for="gi-legal-name">Exact Legal Name of Investor</label>
+          <input type="text" id="gi-legal-name" placeholder="e.g. Jane A. Smith or Acme Capital Partners, LP">
+        </div>
+        <div class="field">
+          <label class="label">Ownership Type</label>
+          <div class="check-group" id="ownership-type-group">
+            <div class="check-item" data-val="individual"><input type="radio" name="ownership-type" value="individual"><label>Individual Ownership</label></div>
+            <div class="check-item" data-val="trust"><input type="radio" name="ownership-type" value="trust"><label>Trust</label></div>
+            <div class="check-item" data-val="lp"><input type="radio" name="ownership-type" value="lp"><label>Limited Partnership</label></div>
+            <div class="check-item" data-val="llc"><input type="radio" name="ownership-type" value="llc"><label>Limited Liability Company</label></div>
+            <div class="check-item" data-val="corp"><input type="radio" name="ownership-type" value="corp"><label>Corporation</label></div>
+            <div class="check-item" data-val="ira"><input type="radio" name="ownership-type" value="ira"><label>Individual Retirement Account (IRA)</label></div>
+            <div class="check-item" data-val="jtic"><input type="radio" name="ownership-type" value="jtic"><label>Joint (Tenants in Common)</label></div>
+            <div class="check-item" data-val="jtwros"><input type="radio" name="ownership-type" value="jtwros"><label>Joint (with rights of survivorship)</label></div>
+            <div class="check-item" data-val="other"><input type="radio" name="ownership-type" value="other"><label>Other</label></div>
+          </div>
+        </div>
+        <div class="field" id="ownership-other-field" style="display:none;">
+          <label class="label" for="gi-ownership-other">Please specify</label>
+          <input type="text" id="gi-ownership-other">
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <!-- Entity fields -->
+      <div class="section-block" id="entity-fields" style="display:none;">
+        <h3>Entity Details</h3>
+        <div class="field-row">
+          <div class="field">
+            <label class="label" for="gi-state-org">State of Organization</label>
+            <input type="text" id="gi-state-org" placeholder="e.g. Delaware">
+          </div>
+          <div class="field">
+            <label class="label" for="gi-country-org">Country of Organization</label>
+            <input type="text" id="gi-country-org" placeholder="e.g. United States">
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label class="label" for="gi-date-formation">Date of Formation</label>
+            <input type="date" id="gi-date-formation">
+          </div>
+          <div class="field">
+            <label class="label" for="gi-contact-person">Contact Person</label>
+            <input type="text" id="gi-contact-person" placeholder="Name of contact">
+          </div>
+        </div>
+      </div>
+
+      <!-- Natural person fields -->
+      <div class="section-block" id="person-fields" style="display:none;">
+        <h3>Personal Details</h3>
+        <div class="field-row">
+          <div class="field">
+            <label class="label" for="gi-dob">Date of Birth</label>
+            <input type="date" id="gi-dob">
+          </div>
+          <div class="field">
+            <label class="label" for="gi-country-birth">Country of Birth</label>
+            <input type="text" id="gi-country-birth" placeholder="e.g. United States">
+          </div>
+        </div>
+        <div class="field">
+          <label class="label" for="gi-country-citizenship">Country of Citizenship</label>
+          <input type="text" id="gi-country-citizenship" placeholder="e.g. United States">
+        </div>
+      </div>
+
+      <!-- IRA fields -->
+      <div class="section-block" id="ira-fields" style="display:none;">
+        <h3>IRA Details</h3>
+        <div class="field">
+          <label class="label" for="gi-ira-trustee">Name of Trustee or IRA Custodian</label>
+          <input type="text" id="gi-ira-trustee">
+        </div>
+        <div class="field">
+          <label class="label" for="gi-ira-ein">EIN of Trustee or Custodian</label>
+          <input type="text" id="gi-ira-ein">
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <div class="section-block">
+        <h3>Contact Information</h3>
+        <div class="field-row">
+          <div class="field">
+            <label class="label" for="gi-email">Email Address</label>
+            <input type="email" id="gi-email" placeholder="investor@example.com">
+          </div>
+          <div class="field">
+            <label class="label" for="gi-phone">Telephone</label>
+            <input type="text" id="gi-phone" placeholder="(555) 000-0000">
+          </div>
+        </div>
+        <div class="field">
+          <label class="label" for="gi-street">Street Address</label>
+          <input type="text" id="gi-street" placeholder="123 Main St, Suite 100">
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label class="label" for="gi-city">City</label>
+            <input type="text" id="gi-city">
+          </div>
+          <div class="field" style="flex:0 0 80px;">
+            <label class="label" for="gi-state">State</label>
+            <input type="text" id="gi-state" placeholder="TX">
+          </div>
+          <div class="field" style="flex:0 0 100px;">
+            <label class="label" for="gi-zip">ZIP / Postal</label>
+            <input type="text" id="gi-zip">
+          </div>
+        </div>
+        <div class="field">
+          <label class="label" for="gi-country">Country</label>
+          <input type="text" id="gi-country" value="United States">
+        </div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="nextStep()">Continue →</button>
+    </div>
+  </div>
+
+  <!-- ── STEP 2: AML / Source of Funds ── -->
+  <div id="step-2" class="step-content" style="display:none;">
+    <div class="card">
+      <h3>Anti-Money Laundering</h3>
+      <p style="margin-bottom:20px;">Please describe the following for AML compliance purposes.</p>
+
+      <div id="aml-person" style="display:none;">
+        <div class="field">
+          <label class="label" for="aml-source-personal">Source of funds / wealth / income used for this investment</label>
+          <textarea id="aml-source-personal" placeholder="e.g. Proceeds from sale of business, employment income, investment returns..."></textarea>
+        </div>
+        <div class="field">
+          <label class="label" for="aml-occupation">Occupation</label>
+          <input type="text" id="aml-occupation" placeholder="e.g. Managing Director, Physician, Entrepreneur">
+        </div>
+      </div>
+
+      <div id="aml-entity" style="display:none;">
+        <div class="field">
+          <label class="label" for="aml-source-entity">Source of funds / wealth / income used for this investment</label>
+          <textarea id="aml-source-entity" placeholder="e.g. Operating revenues, investment proceeds, capital contributions..."></textarea>
+        </div>
+        <div class="field">
+          <label class="label" for="aml-nature">Nature of the investor's business</label>
+          <textarea id="aml-nature" placeholder="e.g. Private equity investment fund, real estate holding company..."></textarea>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="label" for="aml-purpose">Purpose of the Investment</label>
+        <input type="text" id="aml-purpose" placeholder="e.g. Long-term capital appreciation">
+      </div>
+      <div class="field">
+        <label class="label" for="aml-frequency">Expected Frequency of Transactions</label>
+        <input type="text" id="aml-frequency" placeholder="e.g. One-time investment">
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="nextStep()">Continue →</button>
+      <button class="btn btn-ghost" onclick="prevStep()">← Back</button>
+    </div>
+  </div>
+
+  <!-- ── STEP 3: Accredited Investor — Item 1 (Natural Persons) ── -->
+  <div id="step-3" class="step-content" style="display:none;">
+    <div class="card" id="item1-card">
+      <h3>Item 1 - Natural Person Qualification</h3>
+      <p style="margin-bottom:20px;font-size:13px;">Place an "X" next to the appropriate answer. Investor need only satisfy <strong>one</strong> of the following categories. Check "Yes" for all that apply.</p>
+
+      <div class="yn-row">
+        <div class="yn-question"><strong>(a)</strong> Investor's individual income exceeded $200,000 in each of the last two full calendar years and Investor reasonably expects such income to exceed $200,000 in the current year.</div>
+        <div class="yn-controls">
+          <label><input type="radio" name="i1a" value="yes"> Yes</label>
+          <label><input type="radio" name="i1a" value="no"> No</label>
+        </div>
+      </div>
+      <div class="yn-row">
+        <div class="yn-question"><strong>(b)</strong> Investor's joint income with spouse or spousal equivalent exceeded $300,000 in each of the last two full calendar years and Investor reasonably expects such joint income to exceed $300,000 in the current year.</div>
+        <div class="yn-controls">
+          <label><input type="radio" name="i1b" value="yes"> Yes</label>
+          <label><input type="radio" name="i1b" value="no"> No</label>
+        </div>
+      </div>
+      <div class="yn-row">
+        <div class="yn-question"><strong>(c)</strong> Investor's net worth or joint net worth with spouse or spousal equivalent exceeds $1,000,000, excluding the value of the primary residence.</div>
+        <div class="yn-controls">
+          <label><input type="radio" name="i1c" value="yes"> Yes</label>
+          <label><input type="radio" name="i1c" value="no"> No</label>
+        </div>
+      </div>
+      <div class="yn-row">
+        <div class="yn-question"><strong>(d)</strong> Investor currently holds in good standing one or more of the following FINRA licenses: Series 7, Series 65, or Series 82.</div>
+        <div class="yn-controls">
+          <label><input type="radio" name="i1d" value="yes"> Yes</label>
+          <label><input type="radio" name="i1d" value="no"> No</label>
+        </div>
+      </div>
+      <div class="yn-row">
+        <div class="yn-question"><strong>(e)</strong> Investor is a "family client" of a "family office" with assets under management in excess of $5,000,000, not formed for the specific purpose of acquiring the securities offered, and whose prospective investment is directed by a sophisticated person.</div>
+        <div class="yn-controls">
+          <label><input type="radio" name="i1e" value="yes"> Yes</label>
+          <label><input type="radio" name="i1e" value="no"> No</label>
+        </div>
+      </div>
+      <div class="yn-row">
+        <div class="yn-question"><strong>(f)</strong> Investor is a "knowledgeable employee" of the Company as defined in Rule 3c-5(a)(4) under the Investment Company Act.</div>
+        <div class="yn-controls">
+          <label><input type="radio" name="i1f" value="yes"> Yes</label>
+          <label><input type="radio" name="i1f" value="no"> No</label>
+        </div>
+      </div>
+
+      <hr class="divider">
+      <h3>Suitability Inquiry</h3>
+      <div class="yn-row">
+        <div class="yn-question">The amount to be paid by Investor for the acquisition of the Units exceeds 10% of Investor's net worth or joint net worth with that of Investor's spouse or spousal equivalent.</div>
+        <div class="yn-controls">
+          <label><input type="radio" name="i1-suit" value="yes"> Yes</label>
+          <label><input type="radio" name="i1-suit" value="no"> No</label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Item 2 — Entities -->
+    <div class="card" id="item2-card" style="margin-top:16px;display:none;">
+      <h3>Item 1 — Entity Qualification</h3>
+      <p style="margin-bottom:20px;font-size:13px;">Investor need only satisfy <strong>one</strong> of the following categories.</p>
+
+      <div class="yn-row">
+        <div class="yn-question"><strong>(i)</strong> Investor is an ERISA employee benefit plan with assets in excess of $5,000,000.</div>
+        <div class="yn-controls">
+          <label><input type="radio" name="i2i" value="yes"> Yes</label>
+          <label><input type="radio" name="i2i" value="no"> No</label>
+        </div>
+      </div>
+      <div id="i2i-fiduciary" style="display:none;padding:12px 0 0 0;">
+        <div class="field" style="margin-bottom:8px;">
+          <label class="label" style="font-size:12px;">Are investment decisions made by a bank, savings association, insurance company or registered investment adviser acting as fiduciary?</label>
+          <div class="yn-controls" style="margin-top:8px;">
+            <label><input type="radio" name="i2i-fid" value="yes"> Yes</label>
+            <label><input type="radio" name="i2i-fid" value="no"> No</label>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label" for="i2i-fid-name" style="font-size:12px;">Name of Fiduciary</label>
+          <input type="text" id="i2i-fid-name">
+        </div>
+      </div>
+      <div class="yn-row">
+        <div class="yn-question"><strong>(ii)</strong> Investor is a tax-exempt 501(c)(3) organization, corporation, Massachusetts or similar business trust, or partnership, not formed for the specific purpose of acquiring the securities offered, with assets in excess of $5,000,000.</div>
+        <div class="yn-controls">
+          <label><input type="radio" name="i2ii" value="yes"> Yes</label>
+          <label><input type="radio" name="i2ii" value="no"> No</label>
+        </div>
+      </div>
+      <div class="yn-row">
+        <div class="yn-question"><strong>(iii)</strong> Investor is a trust with total assets in excess of $5,000,000, not formed for the specific purpose of acquiring the securities offered, whose purchase is directed by a sophisticated person.</div>
+        <div class="yn-controls">
+          <label><input type="radio" name="i2iii" value="yes"> Yes</label>
+          <label><input type="radio" name="i2iii" value="no"> No</label>
+        </div>
+      </div>
+      <div class="yn-row">
+        <div class="yn-question"><strong>(iv)</strong> Investor is a bank, savings and loan association, broker-dealer, registered investment adviser, insurance company, or registered investment company.</div>
+        <div class="yn-controls">
+          <label><input type="radio" name="i2iv" value="yes"> Yes</label>
+          <label><input type="radio" name="i2iv" value="no"> No</label>
+        </div>
+      </div>
+      <div class="yn-row">
+        <div class="yn-question"><strong>(v)</strong> Investor is a business development company, Small Business Investment Company, Rural Business Investment Company, or private business development company.</div>
+        <div class="yn-controls">
+          <label><input type="radio" name="i2v" value="yes"> Yes</label>
+          <label><input type="radio" name="i2v" value="no"> No</label>
+        </div>
+      </div>
+      <div class="yn-row">
+        <div class="yn-question"><strong>(vi)</strong> Investor is a government plan for employees with total assets in excess of $5,000,000.</div>
+        <div class="yn-controls">
+          <label><input type="radio" name="i2vi" value="yes"> Yes</label>
+          <label><input type="radio" name="i2vi" value="no"> No</label>
+        </div>
+      </div>
+      <div class="yn-row">
+        <div class="yn-question"><strong>(vii)</strong> Investor is a "family office" with AUM in excess of $5,000,000, not formed for the specific purpose of acquiring the securities offered, whose prospective investment is directed by a sophisticated person.</div>
+        <div class="yn-controls">
+          <label><input type="radio" name="i2vii" value="yes"> Yes</label>
+          <label><input type="radio" name="i2vii" value="no"> No</label>
+        </div>
+      </div>
+      <div class="yn-row">
+        <div class="yn-question"><strong>(viii)</strong> Investor is a "family client" of a family office meeting the requirements of (vii) above.</div>
+        <div class="yn-controls">
+          <label><input type="radio" name="i2viii" value="yes"> Yes</label>
+          <label><input type="radio" name="i2viii" value="no"> No</label>
+        </div>
+      </div>
+      <div class="yn-row">
+        <div class="yn-question"><strong>(ix)</strong> Investor is an entity in which <em>all</em> of the equity owners are accredited investors. (Documentation verifying accredited investor status of each equity owner may be required.)</div>
+        <div class="yn-controls">
+          <label><input type="radio" name="i2ix" value="yes"> Yes</label>
+          <label><input type="radio" name="i2ix" value="no"> No</label>
+        </div>
+      </div>
+      <div class="yn-row">
+        <div class="yn-question"><strong>(x)</strong> Investor is an entity, not formed for the specific purpose of acquiring the securities offered, owning investments in excess of $5,000,000.</div>
+        <div class="yn-controls">
+          <label><input type="radio" name="i2x" value="yes"> Yes</label>
+          <label><input type="radio" name="i2x" value="no"> No</label>
+        </div>
+      </div>
+      <div class="yn-row">
+        <div class="yn-question"><strong>(xi)</strong> Investor is an Indian tribe, governmental body, fund, or entity organized under foreign law, owning investments in excess of $5,000,000, not formed for the specific purpose of acquiring the securities offered.</div>
+        <div class="yn-controls">
+          <label><input type="radio" name="i2xi" value="yes"> Yes</label>
+          <label><input type="radio" name="i2xi" value="no"> No</label>
+        </div>
+      </div>
+      <div class="yn-row">
+        <div class="yn-question"><strong>(xii)</strong> Investor qualifies as an accredited investor under another category of Rule 501(a) not specifically listed above.</div>
+        <div class="yn-controls">
+          <label><input type="radio" name="i2xii" value="yes"> Yes</label>
+          <label><input type="radio" name="i2xii" value="no"> No</label>
+        </div>
+      </div>
+      <div id="i2xii-specify" style="display:none;padding:8px 0;">
+        <div class="field">
+          <label class="label" for="i2xii-subsection" style="font-size:12px;">Applicable subsection of Rule 501(a)</label>
+          <input type="text" id="i2xii-subsection">
+        </div>
+      </div>
+      <div class="field" style="margin-top:16px;">
+        <label class="label" for="i2xiii">(xiii) State(s) of principal office (past two years with dates) and state of incorporation / organization</label>
+        <textarea id="i2xiii" placeholder="e.g. Texas (Jan 2023 – present); Delaware (Jan 2021 – Dec 2022). Incorporated in Delaware."></textarea>
+      </div>
+    </div>
+
+    <!-- Item 2 -->
+    <div class="card" style="margin-top:16px;">
+      <h3>Item 2 — All Investors</h3>
+      <div class="yn-row">
+        <div class="yn-question">Investor has <strong>not</strong> been subject to any Regulation D Rule 506(d) disqualifying event and is not subject to any proceeding or event that could result in any such disqualifying event.</div>
+        <div class="yn-controls">
+          <label><input type="radio" name="i2" value="yes"> Yes</label>
+          <label><input type="radio" name="i2" value="no"> No</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="nextStep()">Continue →</button>
+      <button class="btn btn-ghost" onclick="prevStep()">← Back</button>
+    </div>
+  </div>
+
+  <!-- ── STEP 4: Category II — Business Experience ── -->
+  <div id="step-4" class="step-content" style="display:none;">
+    <div class="card">
+      <h3>Category II — Business Experience & Background</h3>
+      <p style="margin-bottom:20px;font-size:13px;">Investor must satisfy at least one of the following.</p>
+
+      <div class="yn-row">
+        <div class="yn-question"><strong>(i)</strong> Investor has a preexisting personal or business relationship with the Company or any of its officers or directors.</div>
+        <div class="yn-controls">
+          <label><input type="radio" name="c2i" value="yes"> Yes</label>
+          <label><input type="radio" name="c2i" value="no"> No</label>
+        </div>
+      </div>
+      <div class="yn-row">
+        <div class="yn-question"><strong>(ii)</strong> By reason of Investor's business or financial experience or the financial experience of Investor's professional advisors (unaffiliated with and not compensated by the Company), Investor has the capacity to protect Investor's own interests in connection with the transaction.</div>
+        <div class="yn-controls">
+          <label><input type="radio" name="c2ii" value="yes"> Yes</label>
+          <label><input type="radio" name="c2ii" value="no"> No</label>
+        </div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="nextStep()">Continue →</button>
+      <button class="btn btn-ghost" onclick="prevStep()">← Back</button>
+    </div>
+  </div>
+
+  <!-- ── STEP 5: Category III — Bad Actor Representations ── -->
+  <div id="step-5" class="step-content" style="display:none;">
+    <div class="card">
+      <h3>Category III — Bad Actor Representations</h3>
+      <p style="margin-bottom:20px;font-size:13px;">Mark <strong>Correct</strong> if the statement accurately describes Investor's situation. Mark <strong>Not Correct</strong> if Investor has experienced any of the described events.</p>
+
+      <div class="cn-row">
+        <div class="cn-question">Investor has <strong>not</strong>, within the last ten (10) years, been convicted of a felony or misdemeanor in connection with the purchase or sale of any security, involving the making of any false filing with the SEC, or arising out of the conduct of the business of an underwriter, broker, dealer, municipal securities dealer, investment adviser or paid solicitor of purchasers of securities.</div>
+        <div class="cn-controls">
+          <label><input type="radio" name="c3a" value="correct"> Correct</label>
+          <label><input type="radio" name="c3a" value="not_correct"> Not Correct</label>
+        </div>
+      </div>
+      <div class="cn-row">
+        <div class="cn-question">Investor is <strong>not</strong> subject to any order, judgment or decree of any court, entered in the last five (5) years, that restrains or enjoins Investor from engaging in any conduct or practice in connection with the purchase or sale of any security or involving the making of a false filing with the SEC.</div>
+        <div class="cn-controls">
+          <label><input type="radio" name="c3b" value="correct"> Correct</label>
+          <label><input type="radio" name="c3b" value="not_correct"> Not Correct</label>
+        </div>
+      </div>
+      <div class="cn-row">
+        <div class="cn-question">Investor is <strong>not</strong> subject to a Final Order of a state securities commission, state banking authority, state insurance commission, federal banking agency, CFTC, or NCUA that bars Investor from association with a regulated entity or constitutes a Final Order based on a violation of a law prohibiting fraudulent, manipulative, or deceptive conduct within the last ten (10) years.</div>
+        <div class="cn-controls">
+          <label><input type="radio" name="c3c" value="correct"> Correct</label>
+          <label><input type="radio" name="c3c" value="not_correct"> Not Correct</label>
+        </div>
+      </div>
+      <div class="cn-row">
+        <div class="cn-question">Investor is <strong>not</strong> subject to an SEC order under Section 15(b) or 15B(c) of the Exchange Act or Section 203(e) or (f) of the Advisers Act that suspends or revokes Investor's registration as a broker, dealer, or investment adviser, or bars Investor from being associated with any entity or from participating in a penny stock offering.</div>
+        <div class="cn-controls">
+          <label><input type="radio" name="c3d" value="correct"> Correct</label>
+          <label><input type="radio" name="c3d" value="not_correct"> Not Correct</label>
+        </div>
+      </div>
+      <div class="cn-row">
+        <div class="cn-question">Investor is <strong>not</strong> subject to any SEC order, entered in the last five (5) years, ordering Investor to cease and desist from committing or causing a violation of any scienter-based anti-fraud provision of federal securities laws or Section 5 of the Securities Act.</div>
+        <div class="cn-controls">
+          <label><input type="radio" name="c3e" value="correct"> Correct</label>
+          <label><input type="radio" name="c3e" value="not_correct"> Not Correct</label>
+        </div>
+      </div>
+      <div class="cn-row">
+        <div class="cn-question">Investor has <strong>never</strong> been suspended or expelled from membership in, or suspended or barred from association with a member of, a registered national securities exchange or registered national or affiliated securities association for conduct inconsistent with just and equitable principles of trade.</div>
+        <div class="cn-controls">
+          <label><input type="radio" name="c3f" value="correct"> Correct</label>
+          <label><input type="radio" name="c3f" value="not_correct"> Not Correct</label>
+        </div>
+      </div>
+      <div class="cn-row">
+        <div class="cn-question">Investor has <strong>not</strong> filed as a registrant or issuer, and has not been named as an underwriter in, any registration statement or Regulation A offering statement filed with the SEC that, within the last five (5) years, was the subject of a refusal order, stop order, or order suspending the Regulation A exemption, or is currently the subject of an investigation or proceeding to determine whether such an order should be issued.</div>
+        <div class="cn-controls">
+          <label><input type="radio" name="c3g" value="correct"> Correct</label>
+          <label><input type="radio" name="c3g" value="not_correct"> Not Correct</label>
+        </div>
+      </div>
+      <div class="cn-row">
+        <div class="cn-question">Investor is <strong>not</strong> subject to any United States Postal Service false representation order entered within the last five (5) years, or any temporary restraining order or preliminary injunction with respect to conduct alleged by the USPS to constitute a scheme for obtaining money through false representations.</div>
+        <div class="cn-controls">
+          <label><input type="radio" name="c3h" value="correct"> Correct</label>
+          <label><input type="radio" name="c3h" value="not_correct"> Not Correct</label>
+        </div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="nextStep()">Continue →</button>
+      <button class="btn btn-ghost" onclick="prevStep()">← Back</button>
+    </div>
+  </div>
+
+  <!-- ── STEP 6: Category IV — Investment Company Act (Entities Only) ── -->
+  <div id="step-6" class="step-content" style="display:none;">
+    <div class="card" id="cat4-card">
+      <h3>Category IV — Investment Company Act Confirmations</h3>
+      <p style="margin-bottom:20px;font-size:13px;">To be completed by Investors that are corporations, partnerships and other entities other than natural persons.</p>
+
+      <div class="cn-row">
+        <div class="cn-question">The Investor is <strong>not</strong> (i) an "investment company" as defined in the Investment Company Act or (ii) an entity which would be an "investment company" but for the exceptions provided for in Section 3(c)(1) and Section 3(c)(7) of the Investment Company Act.</div>
+        <div class="cn-controls">
+          <label><input type="radio" name="c4a" value="correct"> Correct</label>
+          <label><input type="radio" name="c4a" value="not_correct"> Not Correct</label>
+        </div>
+      </div>
+      <div class="cn-row">
+        <div class="cn-question">The Investor constitutes "one person" for purposes of Section 3(c)(1) of the Investment Company Act.</div>
+        <div class="cn-controls">
+          <label><input type="radio" name="c4b" value="correct"> Correct</label>
+          <label><input type="radio" name="c4b" value="not_correct"> Not Correct</label>
+        </div>
+      </div>
+      <div class="field" style="padding:12px 0;">
+        <label class="label" for="c4b-owners" style="font-size:12px;">If beneficial owners exceed one, indicate number</label>
+        <input type="text" id="c4b-owners" placeholder="e.g. 12" style="width:120px;">
+      </div>
+      <div class="cn-row">
+        <div class="cn-question">The Investor's stockholders, partners, members or other beneficial owners, if any, have <strong>no individual discretion</strong> as to their participation or non-participation in the purchase of the Units and will have no individual discretion as to their participation in particular investments made by the Company.</div>
+        <div class="cn-controls">
+          <label><input type="radio" name="c4c" value="correct"> Correct</label>
+          <label><input type="radio" name="c4c" value="not_correct"> Not Correct</label>
+        </div>
+      </div>
+      <div class="cn-row">
+        <div class="cn-question">The Investor was <strong>not</strong> organized or recapitalized for the specific purpose of acquiring the Units. (For the purposes of the preceding sentence, "recapitalized" includes new investments made in the Investor solely for the purpose of financing the Investor's acquisition of the Units.)</div>
+        <div class="cn-controls">
+          <label><input type="radio" name="c4d" value="correct"> Correct</label>
+          <label><input type="radio" name="c4d" value="not_correct"> Not Correct</label>
+        </div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="nextStep()">Continue →</button>
+      <button class="btn btn-ghost" onclick="prevStep()">← Back</button>
+    </div>
+  </div>
+
+  <!-- ── STEP 7: Category V — Qualified Client ── -->
+  <div id="step-7" class="step-content" style="display:none;">
+    <div class="card">
+      <h3>Category V — Qualified Client Certification</h3>
+      <p style="margin-bottom:24px;font-size:13px;">Select the applicable category below. For Individuals, Revocable Trusts, Foundations, Endowments or Other Non-Profit Organizations:</p>
+
+      <div class="check-group" id="qc-individual-group">
+        <div class="check-item" data-val="a">
+          <input type="radio" name="qc-individual" value="a">
+          <label><strong>(a)</strong> Investor has a net worth, including assets held jointly with Investor's spouse, in excess of $2,200,000.</label>
+        </div>
+        <div class="check-item" data-val="b">
+          <input type="radio" name="qc-individual" value="b">
+          <label><strong>(b)</strong> Immediately after being admitted to the Company, Investor will have at least $1,100,000 under the management of the Company.</label>
+        </div>
+        <div class="check-item" data-val="c">
+          <input type="radio" name="qc-individual" value="c">
+          <label><strong>(c)</strong> Investor is a Qualified Purchaser under Section 2(a)(51)(A) of the Investment Company Act of 1940.</label>
+        </div>
+        <div class="check-item" data-val="d">
+          <input type="radio" name="qc-individual" value="d">
+          <label><strong>(d)</strong> Investor does not satisfy one of the criteria in (a) through (c) above and is not a Qualified Client.</label>
+        </div>
+      </div>
+
+      <hr class="divider">
+      <p style="font-size:13px;margin-bottom:16px;">For All Other Entities (including partnerships, trusts or other organizations):</p>
+
+      <div class="check-group" id="qc-entity-group">
+        <div class="check-item" data-val="e">
+          <input type="radio" name="qc-entity" value="e">
+          <label><strong>(e)</strong> Investor is an entity in which all of the equity owners are "Qualified Clients" satisfying one of the criteria in (a) through (c) above. The Investor has taken all reasonable steps to ensure that all equity owners can certify to such representation.</label>
+        </div>
+        <div class="check-item" data-val="f">
+          <input type="radio" name="qc-entity" value="f">
+          <label><strong>(f)</strong> Investor is an entity but not all of its equity owners are "Qualified Clients" satisfying one of the criteria in (a) through (c) above.</label>
+        </div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="nextStep()">Continue →</button>
+      <button class="btn btn-ghost" onclick="prevStep()">← Back</button>
+    </div>
+  </div>
+
+  <!-- ── STEP 8: Review & Sign ── -->
+  <div id="step-8" class="step-content" style="display:none;">
+    <div class="card">
+      <h3>Acknowledgment</h3>
+      <p style="margin-bottom:20px;font-size:12px;line-height:1.7;color:var(--text-muted);">
+        INVESTOR IS AWARE AND UNDERSTANDS THAT THE INFORMATION PROVIDED IN THIS QUESTIONNAIRE WILL BE RELIED UPON BY THE COMPANY AND ITS REPRESENTATIVES IN DETERMINING INVESTOR'S STATUS AS AN ACCREDITED INVESTOR, QUALIFIED CLIENT AND WHETHER INVESTOR OTHERWISE MEETS THE SUITABILITY REQUIREMENTS NECESSARY FOR THE PURCHASE AND OWNERSHIP OF THE SECURITIES IN THE COMPANY. INVESTOR THEREFORE REPRESENTS AND WARRANTS THAT, TO THE BEST OF INVESTOR'S KNOWLEDGE AND BELIEF, THE ABOVE INFORMATION SUPPLIED BY INVESTOR IS TRUE AND CORRECT IN ALL RESPECTS AS OF THE DATE HEREOF. BY SIGNING BELOW, INVESTOR CERTIFIES THAT AT LEAST ONE OF THE REPRESENTATIONS MARKED "YES" IN CATEGORY I ABOVE IS TRUE AND CORRECT AS OF THE DATE HEREOF. INVESTOR UNDERTAKES THE OBLIGATION TO NOTIFY THE COMPANY OF ANY MATERIAL CHANGE IN THE INFORMATION PRESENTED HEREIN. INVESTOR SHALL INDEMNIFY AND HOLD HARMLESS THE COMPANY AND ITS REPRESENTATIVES FROM ANY MISTAKE, INACCURACY OR MISREPRESENTATION IN THIS QUESTIONNAIRE.
+      </p>
+
+      <div id="summary-panel" style="margin-bottom:24px;"></div>
+
+      <div class="sig-block" id="sig-block">
+        <h3>Signature</h3>
+        <div class="field" style="margin-bottom:12px;">
+          <label class="label" for="sig-name">Print Name of Investor (or Signatory)</label>
+          <input type="text" id="sig-name" placeholder="Full legal name">
+        </div>
+        <div class="field" id="sig-title-field" style="display:none;">
+          <label class="label" for="sig-title">Title (if Investor is a legal entity)</label>
+          <input type="text" id="sig-title" placeholder="e.g. Managing Member">
+        </div>
+        <div class="field">
+          <label class="label">Date</label>
+          <input type="text" id="sig-date" readonly style="background:#f5f5f5;color:var(--text-muted);width:160px;">
+        </div>
+        <div style="margin-top:16px;">
+          <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">Signature (type name to sign)</p>
+          <div class="sig-name" id="sig-preview">—</div>
+        </div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="submit-btn">Submit questionnaire</button>
+      <button class="btn btn-ghost" onclick="prevStep()">← Back</button>
+    </div>
+    <p style="font-size:11px;color:var(--text-muted);margin-top:12px;">By clicking "Submit," you certify that all information provided is true and correct to the best of your knowledge.</p>
+  </div>
+</div>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  const SUB_ID = params.get('id');
+  if (!SUB_ID) window.location.href = '/dashboard.html';
+
+  let currentStep = 1;
+  const TOTAL_STEPS = 8;
+  let investorType = 'individual'; // 'individual' or 'entity'
+  let subData = {};
+
+  const steps = {
+    1: { tag: 'General Information', title: 'About the Investor' },
+    2: { tag: 'Anti-Money Laundering', title: 'Source of Funds' },
+    3: { tag: 'Category I', title: 'Accredited Investor Status' },
+    4: { tag: 'Category II', title: 'Business Experience' },
+    5: { tag: 'Category III', title: 'Bad Actor Representations' },
+    6: { tag: 'Category IV', title: 'Investment Company Act' },
+    7: { tag: 'Category V', title: 'Qualified Client Certification' },
+    8: { tag: 'Review & Sign', title: 'Acknowledgment & Signature' },
+  };
+
+  // ── Radio group helpers ──
+  document.querySelectorAll('.check-group').forEach(group => {
+    group.addEventListener('click', e => {
+      const item = e.target.closest('.check-item');
+      if (!item) return;
+      group.querySelectorAll('.check-item').forEach(i => i.classList.remove('selected'));
+      item.classList.add('selected');
+      item.querySelector('input').checked = true;
+
+      // Trigger input event for dynamic logic
+      item.querySelector('input').dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  });
+
+  // Ownership type logic
+  document.querySelectorAll('[name="ownership-type"]').forEach(r => {
+    r.addEventListener('change', () => {
+      const val = r.value;
+      const isEntity = ['llc','lp','corp','trust','ira'].includes(val);
+      const isPerson = ['individual','jtic','jtwros'].includes(val);
+      const isOther = val === 'other';
+      const isIRA = val === 'ira';
+
+      document.getElementById('entity-fields').style.display = isEntity && !isIRA ? 'block' : 'none';
+      document.getElementById('person-fields').style.display = isPerson ? 'block' : 'none';
+      document.getElementById('ira-fields').style.display = isIRA ? 'block' : 'none';
+      document.getElementById('ownership-other-field').style.display = isOther ? 'block' : 'none';
+
+      // Set investor type for later logic
+      investorType = (isEntity || isOther) ? 'entity' : 'individual';
+
+      // Show/hide Item 1 vs Item 2
+      document.getElementById('item1-card').style.display = investorType === 'individual' ? 'block' : 'none';
+      document.getElementById('item2-card').style.display = investorType === 'entity' ? 'block' : 'none';
+      document.getElementById('cat4-card').style.display = investorType === 'entity' ? 'block' : 'block';
+      document.getElementById('sig-title-field').style.display = investorType === 'entity' ? 'block' : 'none';
+    });
+  });
+
+  // AML fields per type
+  function updateAMLFields() {
+    document.getElementById('aml-person').style.display = investorType === 'individual' ? 'block' : 'none';
+    document.getElementById('aml-entity').style.display = investorType === 'entity' ? 'block' : 'none';
+  }
+
+  // i2i ERISA sub-fields
+  document.querySelectorAll('[name="i2i"]').forEach(r => {
+    r.addEventListener('change', () => {
+      document.getElementById('i2i-fiduciary').style.display = r.value === 'yes' ? 'block' : 'none';
+    });
+  });
+
+  // i2xii specify
+  document.querySelectorAll('[name="i2xii"]').forEach(r => {
+    r.addEventListener('change', () => {
+      document.getElementById('i2xii-specify').style.display = r.value === 'yes' ? 'block' : 'none';
+    });
+  });
+
+  // Signature preview
+  document.getElementById('sig-name').addEventListener('input', e => {
+    document.getElementById('sig-preview').textContent = e.target.value || '—';
+  });
+  document.getElementById('sig-date').value = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+  // ── Navigation ──
+  function showStep(n) {
+    document.querySelectorAll('.step-content').forEach(el => el.style.display = 'none');
+    document.getElementById(`step-${n}`).style.display = 'block';
+    document.getElementById('progress-label').textContent = `Step ${n} of ${TOTAL_STEPS}`;
+    document.getElementById('progress-fill').style.width = `${(n / TOTAL_STEPS) * 100}%`;
+    document.getElementById('step-tag').textContent = steps[n].tag;
+    document.getElementById('step-title').textContent = steps[n].title;
+    if (n === 2) updateAMLFields();
+    if (n === 8) buildSummary();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  const CATEGORY_IV_STEP = 6;
+
+  function isStepSkipped(step) {
+    return step === CATEGORY_IV_STEP && investorType === 'individual';
+  }
+
+  async function nextStep() {
+    await autosave();
+    let next = currentStep + 1;
+    while (next <= TOTAL_STEPS && isStepSkipped(next)) next++;
+    if (next <= TOTAL_STEPS) { currentStep = next; showStep(currentStep); }
+  }
+
+  function prevStep() {
+    let prev = currentStep - 1;
+    while (prev >= 1 && isStepSkipped(prev)) prev--;
+    if (prev >= 1) { currentStep = prev; showStep(currentStep); }
+  }
+
+  // ── Collect data ──
+  function r(name) { return document.querySelector(`[name="${name}"]:checked`)?.value || null; }
+  function v(id) { return document.getElementById(id)?.value?.trim() || null; }
+
+  function collectGeneralInfo() {
+    return {
+      legal_name: v('gi-legal-name'),
+      ownership_type: r('ownership-type'),
+      ownership_other: v('gi-ownership-other'),
+      state_org: v('gi-state-org'), country_org: v('gi-country-org'),
+      date_formation: v('gi-date-formation'), contact_person: v('gi-contact-person'),
+      dob: v('gi-dob'), country_birth: v('gi-country-birth'), country_citizenship: v('gi-country-citizenship'),
+      ira_trustee: v('gi-ira-trustee'), ira_ein: v('gi-ira-ein'),
+      email: v('gi-email'), phone: v('gi-phone'),
+      street: v('gi-street'), city: v('gi-city'), state: v('gi-state'), zip: v('gi-zip'), country: v('gi-country'),
+      investor_type: investorType,
+    };
+  }
+
+  function collectInvestmentInfo() {
+    return {
+      aml_source_personal: v('aml-source-personal'), aml_occupation: v('aml-occupation'),
+      aml_source_entity: v('aml-source-entity'), aml_nature: v('aml-nature'),
+      aml_purpose: v('aml-purpose'), aml_frequency: v('aml-frequency'),
+      // Item 1
+      i1a: r('i1a'), i1b: r('i1b'), i1c: r('i1c'), i1d: r('i1d'), i1e: r('i1e'), i1f: r('i1f'),
+      i1_suitability: r('i1-suit'),
+      // Item 2
+      i2i: r('i2i'), i2i_fid: r('i2i-fid'), i2i_fid_name: v('i2i-fid-name'),
+      i2ii: r('i2ii'), i2iii: r('i2iii'), i2iv: r('i2iv'), i2v: r('i2v'), i2vi: r('i2vi'),
+      i2vii: r('i2vii'), i2viii: r('i2viii'), i2ix: r('i2ix'), i2x: r('i2x'),
+      i2xi: r('i2xi'), i2xii: r('i2xii'), i2xii_subsection: v('i2xii-subsection'),
+      i2xiii: v('i2xiii'),
+      // Item 3
+      i3: r('i3'),
+    };
+  }
+
+  function collectCategoryII() {
+    return { c2i: r('c2i'), c2ii: r('c2ii') };
+  }
+
+  function collectCategoryIII() {
+    return { c3a: r('c3a'), c3b: r('c3b'), c3c: r('c3c'), c3d: r('c3d'), c3e: r('c3e'), c3f: r('c3f'), c3g: r('c3g'), c3h: r('c3h') };
+  }
+
+  function collectCategoryIV() {
+    return { c4a: r('c4a'), c4b: r('c4b'), c4b_owners: v('c4b-owners'), c4c: r('c4c'), c4d: r('c4d') };
+  }
+
+  function collectCategoryV() {
+    return { qc_individual: r('qc-individual'), qc_entity: r('qc-entity') };
+  }
+
+  // ── Autosave ──
+  let saveTimeout = null;
+  async function autosave() {
+    clearTimeout(saveTimeout);
+    const body = {
+      general_info: collectGeneralInfo(),
+      investment_info: collectInvestmentInfo(),
+      category_ii: collectCategoryII(),
+      category_iii: collectCategoryIII(),
+      category_iv: collectCategoryIV(),
+      category_v: collectCategoryV(),
+    };
+    setSaveStatus('Saving…');
+    try {
+      await fetch(`/api/submissions/${SUB_ID}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+      setSaveStatus('Saved');
+      setTimeout(() => setSaveStatus(''), 2000);
+    } catch { setSaveStatus('Save failed'); }
+  }
+
+  function setSaveStatus(msg) {
+    document.getElementById('save-status').textContent = msg;
+  }
+
+  // ── Summary ──
+  function buildSummary() {
+    const gi = collectGeneralInfo();
+    const ii = collectInvestmentInfo();
+    const c5 = collectCategoryV();
+    const panel = document.getElementById('summary-panel');
+
+    let accStatus = 'Not indicated';
+    if (gi.investor_type === 'individual') {
+      const qualifies = ['i1a','i1b','i1c','i1d','i1e','i1f'].some(k => ii[k] === 'yes');
+      accStatus = qualifies ? '✓ Appears to qualify as Accredited Investor (natural person)' : '✗ Does not appear to qualify based on Item 1 responses';
+    } else {
+      const entityKeys = ['i2i','i2ii','i2iii','i2iv','i2v','i2vi','i2vii','i2viii','i2ix','i2x','i2xi','i2xii'];
+      const qualifies = entityKeys.some(k => ii[k] === 'yes');
+      accStatus = qualifies ? '✓ Appears to qualify as Accredited Investor (entity)' : '✗ Does not appear to qualify based on Item 2 responses';
+    }
+
+    panel.innerHTML = `
+      <div style="border:1px solid var(--border);padding:16px 20px;margin-bottom:0;">
+        <h3 style="margin-bottom:12px;">Summary</h3>
+        <p style="font-size:13px;margin-bottom:4px;"><strong>Investor:</strong> ${gi.legal_name || '—'}</p>
+        <p style="font-size:13px;margin-bottom:4px;"><strong>Type:</strong> ${gi.ownership_type || '—'}</p>
+        <p style="font-size:13px;margin-bottom:0;"><strong>Accredited Status:</strong> ${accStatus}</p>
+      </div>
+    `;
+  }
+
+  // ── Submit ──
+  document.getElementById('submit-btn').addEventListener('click', async () => {
+    const sigName = v('sig-name');
+    if (!sigName) { showAlert('Please enter your name to sign.'); return; }
+
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true; btn.textContent = 'Submitting…';
+
+    try {
+      await fetch(`/api/submissions/${SUB_ID}`, {
+        method: 'PUT', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          general_info: collectGeneralInfo(),
+          investment_info: collectInvestmentInfo(),
+          category_ii: collectCategoryII(),
+          category_iii: collectCategoryIII(),
+          category_iv: collectCategoryIV(),
+          category_v: collectCategoryV(),
+          signature_name: sigName,
+          status: 'submitted',
+        })
+      });
+      document.querySelectorAll('.step-content').forEach(el => el.style.display='none');
+      document.getElementById('progress-fill').style.width = '100%';
+      document.getElementById('step-tag').textContent = 'Complete';
+      document.getElementById('step-title').textContent = 'Questionnaire Submitted';
+      document.querySelector('.step-header').insertAdjacentHTML('afterend', `
+        <div class="card">
+          <div class="alert alert-success" style="margin-bottom:0;">
+            Your investor questionnaire has been submitted successfully. The company will review your responses and may follow up for additional documentation.
+          </div>
+          <div class="btn-row" style="margin-top:20px;">
+            <a href="/dashboard.html" class="btn btn-outline">← Return to Dashboard</a>
+          </div>
+        </div>
+      `);
+    } catch { showAlert('Submission failed. Please try again.'); btn.disabled=false; btn.textContent='Submit questionnaire'; }
+  });
+
+  function showAlert(msg) {
+    const el = document.getElementById('alert-banner');
+    el.textContent = msg; el.style.display = 'block';
+    el.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  // ── Load existing data ──
+  async function loadSubmission() {
+    const res = await fetch(`/api/submissions/${SUB_ID}`);
+    if (!res.ok) { window.location.href = '/dashboard.html'; return; }
+    const data = await res.json();
+    subData = data;
+
+    if (data.status === 'submitted') {
+      // Read-only view hint
+      document.getElementById('alert-banner').className = 'alert alert-info';
+      document.getElementById('alert-banner').textContent = 'This questionnaire has been submitted and is read-only.';
+      document.getElementById('alert-banner').style.display = 'block';
+    }
+
+    if (data.general_info) populateGeneralInfo(JSON.parse(data.general_info));
+    if (data.investment_info) populateInvestmentInfo(JSON.parse(data.investment_info));
+    if (data.category_ii) populateCategoryII(JSON.parse(data.category_ii));
+    if (data.category_iii) populateCategoryIII(JSON.parse(data.category_iii));
+    if (data.category_iv) populateCategoryIV(JSON.parse(data.category_iv));
+    if (data.category_v) populateCategoryV(JSON.parse(data.category_v));
+    if (data.signature_name) document.getElementById('sig-name').value = data.signature_name;
+  }
+
+  function setRadio(name, value) {
+    if (!value) return;
+    const el = document.querySelector(`[name="${name}"][value="${value}"]`);
+    if (el) {
+      el.checked = true;
+      el.closest('.check-item')?.classList.add('selected');
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }
+  function setVal(id, value) { if (value && document.getElementById(id)) document.getElementById(id).value = value; }
+
+  function populateGeneralInfo(d) {
+    setVal('gi-legal-name', d.legal_name);
+    if (d.ownership_type) {
+      const el = document.querySelector(`[name="ownership-type"][value="${d.ownership_type}"]`);
+      if (el) { el.checked = true; el.closest('.check-item')?.classList.add('selected'); el.dispatchEvent(new Event('change', { bubbles: true })); }
+    }
+    setVal('gi-ownership-other', d.ownership_other);
+    setVal('gi-state-org', d.state_org); setVal('gi-country-org', d.country_org);
+    setVal('gi-date-formation', d.date_formation); setVal('gi-contact-person', d.contact_person);
+    setVal('gi-dob', d.dob); setVal('gi-country-birth', d.country_birth); setVal('gi-country-citizenship', d.country_citizenship);
+    setVal('gi-ira-trustee', d.ira_trustee); setVal('gi-ira-ein', d.ira_ein);
+    setVal('gi-email', d.email); setVal('gi-phone', d.phone);
+    setVal('gi-street', d.street); setVal('gi-city', d.city); setVal('gi-state', d.state); setVal('gi-zip', d.zip); setVal('gi-country', d.country);
+    if (d.investor_type) investorType = d.investor_type;
+  }
+
+  function populateInvestmentInfo(d) {
+    setVal('aml-source-personal', d.aml_source_personal); setVal('aml-occupation', d.aml_occupation);
+    setVal('aml-source-entity', d.aml_source_entity); setVal('aml-nature', d.aml_nature);
+    setVal('aml-purpose', d.aml_purpose); setVal('aml-frequency', d.aml_frequency);
+    ['i1a','i1b','i1c','i1d','i1e','i1f'].forEach(k => setRadio(k, d[k]));
+    setRadio('i1-suit', d.i1_suitability);
+    ['i2i','i2ii','i2iii','i2iv','i2v','i2vi','i2vii','i2viii','i2ix','i2x','i2xi','i2xii'].forEach(k => setRadio(k, d[k]));
+    setRadio('i2i-fid', d.i2i_fid); setVal('i2i-fid-name', d.i2i_fid_name);
+    setVal('i2xii-subsection', d.i2xii_subsection); setVal('i2xiii', d.i2xiii);
+    setRadio('i3', d.i3);
+  }
+
+  function populateCategoryII(d) { setRadio('c2i', d.c2i); setRadio('c2ii', d.c2ii); }
+  function populateCategoryIII(d) { ['c3a','c3b','c3c','c3d','c3e','c3f','c3g','c3h'].forEach(k => setRadio(k, d[k])); }
+  function populateCategoryIV(d) { ['c4a','c4b','c4c','c4d'].forEach(k => setRadio(k, d[k])); setVal('c4b-owners', d.c4b_owners); }
+  function populateCategoryV(d) { setRadio('qc-individual', d.qc_individual); setRadio('qc-entity', d.qc_entity); }
+
+  // Auto-save on blur from inputs
+  let debounce;
+  document.querySelectorAll('input, textarea, select').forEach(el => {
+    el.addEventListener('blur', () => { clearTimeout(debounce); debounce = setTimeout(autosave, 1000); });
+  });
+
+  showStep(1);
+  loadSubmission();
+</script>
+</body>
+</html>

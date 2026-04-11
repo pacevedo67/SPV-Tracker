@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — Investor Questionnaire</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site-header">
+  <div class="site-header-inner">
+    <a href="/dashboard.html" class="site-logo">Investor Questionnaire</a>
+    <nav class="site-nav">
+      <span id="user-name" style="font-size:13px;color:var(--text-muted);"></span>
+      <button id="logout-btn">Sign out</button>
+    </nav>
+  </div>
+</header>
+
+<div class="page-wide">
+  <!-- New submission modal overlay -->
+  <div id="modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:200;display:none;align-items:center;justify-content:center;">
+    <div style="background:var(--surface);border:1px solid var(--border);padding:40px;width:100%;max-width:480px;margin:24px;">
+      <h2 style="margin-bottom:20px;">Start questionnaire</h2>
+      <div id="modal-alert" style="display:none;"></div>
+
+      <div style="margin-bottom:20px;">
+        <p style="margin-bottom:16px;font-size:13px;">Who is this questionnaire for?</p>
+        <div class="check-group" id="investor-type-group">
+          <div class="check-item" data-val="self">
+            <input type="radio" name="investor-type" id="type-self" value="self">
+            <label for="type-self"><strong>Myself</strong> — I am the investor</label>
+          </div>
+          <div class="check-item" data-val="behalf">
+            <input type="radio" name="investor-type" id="type-behalf" value="behalf">
+            <label for="type-behalf"><strong>On behalf of</strong> — I am filling out for another party</label>
+          </div>
+        </div>
+      </div>
+
+      <div id="investor-name-field" class="field" style="display:none;">
+        <label class="label" for="investor-legal-name">Investor Legal Name</label>
+        <input type="text" id="investor-legal-name" placeholder="e.g. Acme Capital Partners, LP">
+        <p class="hint">Exact legal name of the investing entity or individual</p>
+      </div>
+
+      <div id="investor-self-field" class="field" style="display:none;">
+        <label class="label" for="investor-self-name">Your Legal Name (as investor)</label>
+        <input type="text" id="investor-self-name" placeholder="e.g. Jane A. Smith">
+      </div>
+
+      <div id="relationship-field" class="field" style="display:none;">
+        <label class="label" for="investor-relationship">Your Role / Relationship</label>
+        <input type="text" id="investor-relationship" placeholder="e.g. Managing Member, Trustee, Attorney-in-Fact">
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-primary" id="modal-start-btn" disabled>Continue →</button>
+        <button class="btn btn-ghost" id="modal-cancel-btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Existing investor modal -->
+  <div id="investor-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:200;align-items:center;justify-content:center;">
+    <div style="background:var(--surface);border:1px solid var(--border);padding:40px;width:100%;max-width:480px;margin:24px;">
+      <h2 style="margin-bottom:4px;">Select investor</h2>
+      <p style="margin-bottom:20px;font-size:13px;">Choose an existing investor profile or create a new one.</p>
+      <div id="investor-list-modal" class="check-group" style="margin-bottom:20px;max-height:240px;overflow-y:auto;"></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="investor-select-btn" disabled>Start questionnaire</button>
+        <button class="btn btn-outline" id="new-investor-btn">New investor</button>
+        <button class="btn btn-ghost" id="investor-cancel-btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:32px;flex-wrap:wrap;gap:12px;">
+    <div>
+      <h1>Questionnaires</h1>
+      <p>Manage and submit accredited investor questionnaires.</p>
+    </div>
+    <button class="btn btn-primary" id="new-btn">+ New questionnaire</button>
+  </div>
+
+  <div id="list-container">
+    <div class="submission-list" id="submission-list"></div>
+    <div class="empty" id="empty-state" style="display:none;">
+      <p>No questionnaires yet.<br>Start one to begin the accredited investor qualification process.</p>
+      <button class="btn btn-outline" id="new-btn-2">+ New questionnaire</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let currentUser = null;
+  let investors = [];
+  let selectedInvestorId = null;
+
+  async function init() {
+    const res = await fetch('/api/me');
+    if (!res.ok) { window.location.href = '/'; return; }
+    currentUser = await res.json();
+    document.getElementById('user-name').textContent = currentUser.full_name;
+    loadSubmissions();
+    loadInvestors();
+  }
+
+  async function loadInvestors() {
+    const res = await fetch('/api/investors');
+    if (res.ok) investors = await res.json();
+  }
+
+  async function loadSubmissions() {
+    const res = await fetch('/api/submissions');
+    if (!res.ok) return;
+    const data = await res.json();
+    const list = document.getElementById('submission-list');
+    const empty = document.getElementById('empty-state');
+    if (!data.length) { list.style.display='none'; empty.style.display='block'; return; }
+    empty.style.display='none'; list.style.display='flex';
+    list.innerHTML = data.map(s => `
+      <a href="/questionnaire.html?id=${s.id}" class="submission-card">
+        <div class="submission-card-info">
+          <h4>${escHtml(s.investor_name)}</h4>
+          <p>Updated ${new Date(s.updated_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</p>
+        </div>
+        <span class="badge badge-${s.status}">${s.status}</span>
+      </a>
+    `).join('');
+  }
+
+  function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  // Open new questionnaire flow
+  function openModal() {
+    if (investors.length > 0) {
+      showInvestorModal();
+    } else {
+      showNewModal();
+    }
+  }
+
+  function showInvestorModal() {
+    const modal = document.getElementById('investor-modal');
+    const listEl = document.getElementById('investor-list-modal');
+    selectedInvestorId = null;
+    document.getElementById('investor-select-btn').disabled = true;
+    listEl.innerHTML = investors.map(inv => `
+      <div class="check-item" data-id="${inv.id}">
+        <input type="radio" name="sel-investor" value="${inv.id}" id="inv-${inv.id}">
+        <label for="inv-${inv.id}">
+          <strong>${escHtml(inv.legal_name)}</strong>
+          ${!inv.is_self ? `<br><span style="font-size:11px;color:var(--text-muted)">${escHtml(inv.relationship||'On behalf of')}</span>` : ''}
+        </label>
+      </div>
+    `).join('');
+    listEl.querySelectorAll('.check-item').forEach(item => {
+      item.addEventListener('click', () => {
+        listEl.querySelectorAll('.check-item').forEach(i => i.classList.remove('selected'));
+        item.classList.add('selected');
+        item.querySelector('input').checked = true;
+        selectedInvestorId = item.dataset.id;
+        document.getElementById('investor-select-btn').disabled = false;
+      });
+    });
+    modal.style.display = 'flex';
+  }
+
+  function showNewModal() {
+    document.getElementById('investor-modal').style.display = 'none';
+    document.getElementById('modal-overlay').style.display = 'flex';
+    document.getElementById('modal-alert').style.display = 'none';
+    document.getElementById('modal-start-btn').disabled = true;
+    document.querySelectorAll('#investor-type-group .check-item').forEach(i => i.classList.remove('selected'));
+    document.querySelectorAll('#investor-type-group input').forEach(i => { i.checked = false; });
+    document.getElementById('investor-name-field').style.display = 'none';
+    document.getElementById('investor-self-field').style.display = 'none';
+    document.getElementById('relationship-field').style.display = 'none';
+    document.getElementById('investor-legal-name').value = '';
+    document.getElementById('investor-self-name').value = '';
+    document.getElementById('investor-relationship').value = '';
+  }
+
+  document.querySelectorAll('#investor-type-group .check-item').forEach(item => {
+    item.addEventListener('click', () => {
+      document.querySelectorAll('#investor-type-group .check-item').forEach(i => i.classList.remove('selected'));
+      item.classList.add('selected');
+      item.querySelector('input').checked = true;
+      const val = item.dataset.val;
+      document.getElementById('investor-name-field').style.display = val === 'behalf' ? 'block' : 'none';
+      document.getElementById('investor-self-field').style.display = val === 'self' ? 'block' : 'none';
+      document.getElementById('relationship-field').style.display = val === 'behalf' ? 'block' : 'none';
+      checkModalValid();
+    });
+  });
+
+  function checkModalValid() {
+    const type = document.querySelector('#investor-type-group input:checked')?.value;
+    const name = type === 'self' ? document.getElementById('investor-self-name').value.trim() : document.getElementById('investor-legal-name').value.trim();
+    document.getElementById('modal-start-btn').disabled = !type || !name;
+  }
+
+  ['investor-legal-name','investor-self-name','investor-relationship'].forEach(id => {
+    document.getElementById(id).addEventListener('input', checkModalValid);
+  });
+
+  document.getElementById('modal-start-btn').addEventListener('click', async () => {
+    const type = document.querySelector('#investor-type-group input:checked')?.value;
+    const isSelf = type === 'self';
+    const legalName = isSelf ? document.getElementById('investor-self-name').value.trim() : document.getElementById('investor-legal-name').value.trim();
+    const rel = document.getElementById('investor-relationship').value.trim();
+
+    // Create investor
+    const iRes = await fetch('/api/investors', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ legal_name: legalName, is_self: isSelf, relationship: rel }) });
+    if (!iRes.ok) { const d=await iRes.json(); showModalAlert(d.error); return; }
+    const investor = await iRes.json();
+
+    // Create submission
+    const sRes = await fetch('/api/submissions', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ investor_id: investor.id }) });
+    if (!sRes.ok) { const d=await sRes.json(); showModalAlert(d.error); return; }
+    const sub = await sRes.json();
+    window.location.href = `/questionnaire.html?id=${sub.id}`;
+  });
+
+  document.getElementById('investor-select-btn').addEventListener('click', async () => {
+    if (!selectedInvestorId) return;
+    const sRes = await fetch('/api/submissions', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ investor_id: selectedInvestorId }) });
+    if (!sRes.ok) return;
+    const sub = await sRes.json();
+    window.location.href = `/questionnaire.html?id=${sub.id}`;
+  });
+
+  document.getElementById('new-investor-btn').addEventListener('click', showNewModal);
+  document.getElementById('investor-cancel-btn').addEventListener('click', () => { document.getElementById('investor-modal').style.display='none'; });
+  document.getElementById('modal-cancel-btn').addEventListener('click', () => { document.getElementById('modal-overlay').style.display='none'; });
+  document.getElementById('new-btn').addEventListener('click', openModal);
+  document.getElementById('new-btn-2')?.addEventListener('click', openModal);
+
+  function showModalAlert(msg) {
+    const el = document.getElementById('modal-alert');
+    el.className = 'alert alert-error'; el.textContent = msg; el.style.display='block';
+  }
+
+  document.getElementById('logout-btn').addEventListener('click', async () => {
+    await fetch('/api/logout', { method:'POST' });
+    window.location.href = '/';
+  });
+
+  init();
+</script>
+</body>
+</html>
