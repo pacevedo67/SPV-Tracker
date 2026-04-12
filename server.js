@@ -102,6 +102,21 @@ async function sendEmail({ to, subject, html }) {
   }
 }
 
+// ── Invite token: {name-slug}-{6-char-code} e.g. john-smith-Ak3Xm9 ──
+const TOKEN_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+function makeInviteToken(contactName) {
+  const slug = contactName
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .slice(0, 30)
+    || 'investor';
+  const bytes = crypto.randomBytes(6);
+  const code = Array.from(bytes).map(b => TOKEN_CHARS[b % TOKEN_CHARS.length]).join('');
+  return `${slug}-${code}`;
+}
+
 // ── Health check (used by Render) ──
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 
@@ -501,7 +516,7 @@ app.post('/api/matters/:id/invite', requireAuth, async (req, res) => {
   if (!contact) return res.status(404).json({ error: 'Contact not found' });
 
   const firm = db.prepare('SELECT * FROM firms WHERE id=?').get(req.user.firmId);
-  const token = uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, '');
+  const token = makeInviteToken(contact.name);
   const invId = uuidv4();
 
   const existing = db.prepare('SELECT * FROM invitations WHERE matter_id=? AND investor_contact_id=?').get(req.params.id, contact_id);
@@ -546,7 +561,7 @@ app.post('/api/invitations/:id/resend', requireAuth, async (req, res) => {
   if (!inv || inv.firm_id !== req.user.firmId) return res.status(404).json({ error: 'Not found' });
 
   const firm = db.prepare('SELECT * FROM firms WHERE id=?').get(req.user.firmId);
-  const newToken = uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, '');
+  const newToken = makeInviteToken(inv.contact_name);
   db.prepare('UPDATE invitations SET token=?, status=?, sent_at=CURRENT_TIMESTAMP, sent_by=? WHERE id=?').run(newToken, 'sent', req.user.userId, req.params.id);
 
   const link = `${BASE_URL}/q/${newToken}`;
