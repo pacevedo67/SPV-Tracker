@@ -133,7 +133,21 @@ function optionalAuth(req, res, next) {
 }
 
 function requireAdmin(req, res, next) {
-  if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+  if (!req.user) {
+    // Populate req.user if not already set (e.g. when used without requireAuth)
+    const token = getTokenFromRequest(req);
+    if (!token) return res.status(401).json({ error: 'Not authenticated' });
+    try {
+      const payload = jwt.verify(token, EFFECTIVE_JWT_SECRET);
+      if (payload.jti) {
+        const denied = db.prepare('SELECT 1 FROM token_denylist WHERE jti = ?').get(payload.jti);
+        if (denied) return res.status(401).json({ error: 'Session revoked. Please sign in again.' });
+      }
+      req.user = payload;
+    } catch(e) {
+      return res.status(401).json({ error: 'Invalid or expired session' });
+    }
+  }
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
   const user = db.prepare('SELECT * FROM users WHERE id=?').get(req.user.userId);
   if (!user) return res.status(404).json({ error: 'User not found' });
