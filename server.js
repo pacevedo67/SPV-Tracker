@@ -12,6 +12,8 @@ const app = express();
 const PORT = process.env.PORT || 3030;
 const BASE_URL = (process.env.BASE_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
 const IS_PROD = process.env.NODE_ENV === 'production';
+const LB_URL  = (process.env.LB_URL || 'https://leaderboard.phillipacevedo.com').replace(/\/$/, '');
+const DT_URL  = (process.env.DT_URL || 'https://dealtracker.phillipacevedo.com').replace(/\/$/, '');
 
 // ── JWT config ──
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -197,6 +199,43 @@ app.get('/api/me', requireAuth, (req, res) => {
   const user = db.prepare('SELECT id, email, full_name, role, firm_id, created_at FROM users WHERE id=?').get(req.user.userId);
   if (!user) return res.status(404).json({ error: 'User not found' });
   res.json(user);
+});
+
+// /api/auth/me — used by other apps to verify an SPV token cross-app
+app.get('/api/auth/me', requireAuth, (req, res) => {
+  res.json({ email: req.user.email, full_name: req.user.full_name });
+});
+
+// SSO exchange — accept a token from LB or DT, verify it, issue an SPV session
+app.post('/api/auth/exchange', async (req, res) => {
+  const { token } = req.body;
+  if (!token) return res.status(400).json({ error: 'token required' });
+  let email, full_name;
+  for (const url of [LB_URL, DT_URL]) {
+    try {
+      const r = await fetch(`${url}/api/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(5000),
+      });
+      if (r.ok) {
+        const d = await r.json();
+        email     = (d.email || d.user?.email)?.toLowerCase().trim();
+        full_name = d.full_name || d.name || d.user?.name || email;
+        break;
+      }
+    } catch {}
+  }
+  if (!email) return res.status(401).json({ error: 'Token could not be verified' });
+  let user = db.prepare('SELECT * FROM users WHERE email=?').get(email);
+  if (!user) {
+    const userId = uuidv4(); const firmId = uuidv4();
+    db.prepare('INSERT INTO firms (id, name) VALUES (?, ?)').run(firmId, (full_name || email) + "'s Firm");
+    db.prepare('INSERT INTO users (id, email, password_hash, full_name, firm_id, role) VALUES (?, ?, ?, ?, ?, ?)').run(userId, email, '', full_name || email, firmId, 'admin');
+    user = db.prepare('SELECT * FROM users WHERE id=?').get(userId);
+  }
+  const spvToken = makeToken(user);
+  setAuthCookie(res, spvToken);
+  res.json({ ok: true });
 });
 
 // Refresh — issue a fresh JWT without requiring the password

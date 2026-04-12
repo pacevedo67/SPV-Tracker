@@ -89,6 +89,20 @@
 </div>
 
 <script>
+  // SSO: if arriving from LB or DT with a token, exchange it for an SPV session
+  (async function() {
+    const p = new URLSearchParams(location.search);
+    const t = p.get('token');
+    if (!t) return;
+    p.delete('token');
+    history.replaceState({}, '', location.pathname + (p.toString() ? '?' + p : ''));
+    const res = await fetch('/api/auth/exchange', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: t }),
+    });
+    if (res.ok) window.location.href = '/dashboard.html';
+  })();
+
   const alertBox = document.getElementById('alert-box');
   function showAlert(msg, type='error') {
     alertBox.className = `alert alert-${type}`;
