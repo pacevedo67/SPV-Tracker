@@ -339,10 +339,10 @@ app.get('/api/matters', requireAuth, (req, res) => {
 });
 
 app.post('/api/matters', requireAuth, (req, res) => {
-  const { name, description } = req.body;
+  const { name, description, client } = req.body;
   if (!name) return res.status(400).json({ error: 'Name required' });
   const id = uuidv4();
-  db.prepare('INSERT INTO matters (id, firm_id, name, description, created_by) VALUES (?, ?, ?, ?, ?)').run(id, req.user.firmId, name, description || null, req.user.userId);
+  db.prepare('INSERT INTO matters (id, firm_id, name, description, client, created_by) VALUES (?, ?, ?, ?, ?, ?)').run(id, req.user.firmId, name, description || null, client || null, req.user.userId);
   res.json(db.prepare('SELECT * FROM matters WHERE id=?').get(id));
 });
 

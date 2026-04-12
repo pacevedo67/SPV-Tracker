@@ -45,6 +45,10 @@
       <div style="padding:0;">
         <h3 style="margin-bottom:16px;">New Matter</h3>
         <div class="field">
+          <label class="label" for="m-client">Client</label>
+          <input type="text" id="m-client" placeholder="e.g. Acme Corp">
+        </div>
+        <div class="field">
           <label class="label" for="m-name">Matter / Deal Name</label>
           <input type="text" id="m-name" placeholder="e.g. Series A — Acme Corp">
         </div>
@@ -202,12 +206,13 @@
   document.getElementById('save-matter-btn').addEventListener('click', async () => {
     const name = document.getElementById('m-name').value.trim();
     if (!name) return;
-    const res = await fetch('/api/matters', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name, description: document.getElementById('m-desc').value.trim() }) });
+    const res = await fetch('/api/matters', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name, description: document.getElementById('m-desc').value.trim(), client: document.getElementById('m-client').value.trim() }) });
     if (res.ok) {
       const m = await res.json();
       document.getElementById('new-matter-form').style.display = 'none';
       document.getElementById('m-name').value = '';
       document.getElementById('m-desc').value = '';
+      document.getElementById('m-client').value = '';
       location.href = `/matter.html?id=${m.id}`;
     }
   });

@@ -113,6 +113,7 @@ const migrations = [
   `ALTER TABLE questionnaire_submissions ADD COLUMN signature_data TEXT`,
   `ALTER TABLE questionnaire_submissions ADD COLUMN signature_type TEXT`,
   `ALTER TABLE questionnaire_submissions ADD COLUMN signed_at DATETIME`,
+  `ALTER TABLE matters ADD COLUMN client TEXT`,
 ];
 for (const sql of migrations) {
   try { db.prepare(sql).run(); } catch {}
