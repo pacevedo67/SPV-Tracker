@@ -121,7 +121,15 @@
         <tbody>
           ${users.map(u => `
             <tr style="border-bottom:1px solid var(--border);" data-id="${u.id}">
-              <td style="padding:12px 0;font-size:13px;font-weight:500;">${esc(u.full_name)}${u.id === currentUser.id ? ' <span style="font-size:11px;color:var(--text-muted);">(you)</span>' : ''}</td>
+              <td style="padding:12px 0;font-size:13px;font-weight:500;">
+                <span contenteditable="${u.id !== currentUser.id ? 'true' : 'false'}"
+                      class="editable-name"
+                      data-id="${u.id}"
+                      data-orig="${esc(u.full_name)}"
+                      style="padding:2px 4px;border-radius:3px;outline:none;${u.id !== currentUser.id ? 'cursor:text;' : ''}"
+                      title="${u.id !== currentUser.id ? 'Click to edit name' : ''}"
+                >${esc(u.full_name)}</span>${u.id === currentUser.id ? ' <span style="font-size:11px;color:var(--text-muted);">(you)</span>' : ''}
+              </td>
               <td style="padding:12px 0;font-size:13px;color:var(--text-muted);">${esc(u.email)}</td>
               <td style="padding:12px 0;">
                 <select class="role-select" data-id="${u.id}" style="font-size:12px;padding:4px 8px;width:auto;" ${u.id === currentUser.id ? 'disabled' : ''}>
@@ -144,6 +152,17 @@
         const res = await fetch(`/api/firm/users/${sel.dataset.id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ role: sel.value }) });
         if (!res.ok) { alert('Failed to update role'); sel.value = sel.value === 'admin' ? 'user' : 'admin'; }
         else showGlobal('Role updated.', 'success');
+      });
+    });
+
+    el.querySelectorAll('.editable-name').forEach(span => {
+      span.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); span.blur(); } });
+      span.addEventListener('blur', async () => {
+        const newName = span.textContent.trim();
+        if (!newName || newName === span.dataset.orig) { span.textContent = span.dataset.orig; return; }
+        const res = await fetch(`/api/firm/users/${span.dataset.id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ full_name: newName }) });
+        if (res.ok) { span.dataset.orig = newName; showGlobal('Name updated.', 'success'); }
+        else { span.textContent = span.dataset.orig; showGlobal('Failed to update name.', 'error'); }
       });
     });
 

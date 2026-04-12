@@ -350,11 +350,17 @@ app.post('/api/firm/users', requireAdmin, async (req, res) => {
 });
 
 app.put('/api/firm/users/:id', requireAdmin, (req, res) => {
-  const { role } = req.body;
-  if (!['admin', 'user'].includes(role)) return res.status(400).json({ error: 'Invalid role' });
+  const { role, full_name } = req.body;
   const target = db.prepare('SELECT * FROM users WHERE id=? AND firm_id=?').get(req.params.id, req.currentUser.firm_id);
   if (!target) return res.status(404).json({ error: 'User not found' });
-  db.prepare('UPDATE users SET role=? WHERE id=?').run(role, req.params.id);
+  if (role !== undefined) {
+    if (!['admin', 'user'].includes(role)) return res.status(400).json({ error: 'Invalid role' });
+    db.prepare('UPDATE users SET role=? WHERE id=?').run(role, req.params.id);
+  }
+  if (full_name !== undefined) {
+    if (!full_name.trim()) return res.status(400).json({ error: 'Name cannot be empty' });
+    db.prepare('UPDATE users SET full_name=? WHERE id=?').run(full_name.trim(), req.params.id);
+  }
   res.json({ ok: true });
 });
 
