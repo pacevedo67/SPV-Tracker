@@ -88,6 +88,23 @@ db.exec(`
   );
 `);
 
+// ── Auth support tables ──
+db.exec(`
+  CREATE TABLE IF NOT EXISTS password_resets (
+    token      TEXT PRIMARY KEY,
+    email      TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+    expires_at TEXT NOT NULL,
+    used       INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS token_denylist (
+    jti        TEXT PRIMARY KEY,
+    expires_at TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+`);
+
 // ── Idempotent migrations ──
 const migrations = [
   `ALTER TABLE users ADD COLUMN firm_id TEXT`,

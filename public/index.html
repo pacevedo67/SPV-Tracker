@@ -36,8 +36,26 @@
         <div class="btn-row" style="margin-top:20px;">
           <button type="submit" class="btn btn-primary" style="width:100%;">Sign in</button>
         </div>
-        <p style="margin-top:16px;text-align:center;">
+        <p style="margin-top:12px;text-align:center;">
+          <a href="#" id="go-forgot" style="font-size:13px;color:var(--text-muted);text-decoration:none;">Forgot password?</a>
+        </p>
+        <p style="margin-top:8px;text-align:center;">
           <a href="#" id="go-register" style="font-size:13px;color:var(--text-muted);text-decoration:none;">Create an account →</a>
+        </p>
+      </form>
+
+      <!-- Forgot password form -->
+      <form id="forgot-form" style="display:none;">
+        <p style="margin-bottom:16px;font-size:13px;color:var(--text-muted);">Enter your email and we'll send a reset link.</p>
+        <div class="field">
+          <label class="label" for="f-email">Email</label>
+          <input type="email" id="f-email" placeholder="you@example.com" autocomplete="email" required>
+        </div>
+        <div class="btn-row" style="margin-top:20px;">
+          <button type="submit" class="btn btn-primary" style="width:100%;">Send reset link</button>
+        </div>
+        <p style="margin-top:16px;text-align:center;">
+          <a href="#" id="go-login-from-forgot" style="font-size:13px;color:var(--text-muted);text-decoration:none;">← Back to sign in</a>
         </p>
       </form>
 
@@ -78,20 +96,19 @@
     alertBox.style.display = 'block';
   }
 
-  document.getElementById('go-register').addEventListener('click', e => {
-    e.preventDefault();
-    document.getElementById('login-form').style.display = 'none';
-    document.getElementById('register-form').style.display = 'block';
-    document.getElementById('form-title').textContent = 'Create account';
+  function showForm(name) {
+    ['login-form', 'register-form', 'forgot-form'].forEach(id => {
+      document.getElementById(id).style.display = id === name ? 'block' : 'none';
+    });
+    const titles = { 'login-form': 'Sign in', 'register-form': 'Create account', 'forgot-form': 'Reset password' };
+    document.getElementById('form-title').textContent = titles[name];
     alertBox.style.display = 'none';
-  });
-  document.getElementById('go-login').addEventListener('click', e => {
-    e.preventDefault();
-    document.getElementById('register-form').style.display = 'none';
-    document.getElementById('login-form').style.display = 'block';
-    document.getElementById('form-title').textContent = 'Sign in';
-    alertBox.style.display = 'none';
-  });
+  }
+
+  document.getElementById('go-register').addEventListener('click', e => { e.preventDefault(); showForm('register-form'); });
+  document.getElementById('go-login').addEventListener('click', e => { e.preventDefault(); showForm('login-form'); });
+  document.getElementById('go-forgot').addEventListener('click', e => { e.preventDefault(); showForm('forgot-form'); });
+  document.getElementById('go-login-from-forgot').addEventListener('click', e => { e.preventDefault(); showForm('login-form'); });
 
   document.getElementById('login-form').addEventListener('submit', async e => {
     e.preventDefault();
@@ -123,6 +140,22 @@
       if (!res.ok) { showAlert(data.error); btn.disabled=false; btn.textContent='Create account'; return; }
       window.location.href = '/dashboard.html';
     } catch { showAlert('Network error'); btn.disabled=false; btn.textContent='Create account'; }
+  });
+
+  document.getElementById('forgot-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    alertBox.style.display = 'none';
+    const btn = e.target.querySelector('button[type=submit]');
+    btn.disabled = true; btn.textContent = 'Sending…';
+    try {
+      const res = await fetch('/api/forgot-password', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ email: document.getElementById('f-email').value })
+      });
+      const data = await res.json();
+      showAlert(data.message || 'Reset link sent.', 'success');
+      btn.disabled = false; btn.textContent = 'Send reset link';
+    } catch { showAlert('Network error'); btn.disabled=false; btn.textContent='Send reset link'; }
   });
 </script>
 </body>
