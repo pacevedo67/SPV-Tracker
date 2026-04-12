@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Matter</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .status-badge { display:inline-block;padding:2px 9px;font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.04em;border-radius:999px; }
+    .status-sent       { background:#fef9c3;color:#92400e; }
+    .status-opened     { background:#dbeafe;color:#1e40af; }
+    .status-in_progress{ background:#e0f2fe;color:#0369a1; }
+    .status-signed     { background:#dcfce7;color:#15803d; }
+    .status-completed  { background:#dcfce7;color:#15803d; }
+    .status-revised    { background:#fef3c7;color:#92400e; }
+    .status-draft      { background:#f1f5f9;color:var(--text-muted); }
+
+    .investor-row { display:grid;grid-template-columns:32px 1fr 1fr 120px 120px 180px;gap:16px;align-items:center;padding:13px 0;border-bottom:1px solid var(--border);font-size:13px;transition:background .1s; }
+    .investor-row:last-child { border-bottom:none; }
+    .investor-row:hover { background:#f8fafc; }
+    .investor-header { display:grid;grid-template-columns:32px 1fr 1fr 120px 120px 180px;gap:16px;padding:8px 0;border-bottom:1px solid var(--border);font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted); }
+
+    .sort-btn { background:none;border:none;padding:0;cursor:pointer;font:inherit;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);display:flex;align-items:center;gap:4px; }
+    .sort-btn:hover { color:var(--text); }
+    .sort-indicator { font-size:9px;opacity:.45; }
+    .sort-btn.active { color:var(--accent); }
+    .sort-btn.active .sort-indicator { opacity:1; }
+
+    .bulk-bar { display:none;align-items:center;gap:12px;padding:10px 16px;background:var(--accent);color:#fff;font-size:13px;margin-bottom:16px;border-radius:5px; }
+    .bulk-bar.visible { display:flex; }
+    .bulk-bar button { background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);color:#fff;padding:4px 12px;font-size:12px;cursor:pointer;border-radius:4px;font-family:var(--font); }
+    .bulk-bar button:hover { background:rgba(255,255,255,.28); }
+
+    .modal-overlay { display:none;position:fixed;inset:0;background:rgba(15,23,42,.4);z-index:300;align-items:center;justify-content:center; }
+    .modal-box { background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:36px;width:100%;max-width:520px;margin:24px;box-shadow:0 8px 32px rgba(0,0,0,.12); }
+  </style>
+</head>
+<body>
+<header class="site-header">
+  <div class="site-header-inner">
+    <a href="/dashboard.html" class="site-back">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 2L4 7l5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Matters
+    </a>
+    <nav class="site-nav">
+      <span id="user-name" style="font-size:13px;color:var(--text-muted);"></span>
+    </nav>
+  </div>
+</header>
+
+<!-- Add Contact Modal -->
+<div class="modal-overlay" id="contact-modal">
+  <div class="modal-box">
+    <h2 style="margin-bottom:20px;">Add Investor</h2>
+    <div id="contact-alert" style="display:none;" class="alert alert-error"></div>
+    <div class="field-row">
+      <div class="field">
+        <label class="label" for="c-name">Full Name</label>
+        <input type="text" id="c-name" placeholder="John Smith">
+      </div>
+      <div class="field">
+        <label class="label" for="c-email">Email</label>
+        <input type="email" id="c-email" placeholder="john@example.com">
+      </div>
+    </div>
+    <div class="field">
+      <label class="label" for="c-entity">Entity Name <span style="color:var(--text-muted);font-weight:400;">(optional)</span></label>
+      <input type="text" id="c-entity" placeholder="e.g. Smith Family Trust">
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="save-contact-btn">Add &amp; Send Invitation</button>
+      <button class="btn btn-ghost" id="cancel-contact-btn">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Copy Link Modal -->
+<div class="modal-overlay" id="link-modal">
+  <div class="modal-box">
+    <h2 style="margin-bottom:8px;">Invitation Sent</h2>
+    <p style="margin-bottom:20px;">The email has been sent. You can also copy the link to share manually.</p>
+    <div class="field">
+      <label class="label">Questionnaire Link</label>
+      <div style="display:flex;gap:8px;">
+        <input type="text" id="link-input" readonly style="flex:1;background:#f5f5f5;">
+        <button class="btn btn-outline" id="copy-link-btn">Copy</button>
+      </div>
+    </div>
+    <div class="btn-row" style="margin-top:20px;">
+      <button class="btn btn-primary" id="close-link-modal-btn">Done</button>
+    </div>
+  </div>
+</div>
+
+<div class="page-wide">
+  <div id="alert-banner" style="display:none;" class="alert"></div>
+
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:12px;">
+    <div>
+      <h1 id="matter-name">Loading…</h1>
+      <p id="matter-desc" style="margin-top:4px;"></p>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-primary" id="add-investor-btn">+ Add Investor</button>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:24px;margin-bottom:32px;flex-wrap:wrap;">
+    <span id="stat-total" style="font-size:13px;color:var(--text-muted);"></span>
+    <span id="stat-completed" style="font-size:13px;color:var(--text-muted);"></span>
+    <span id="stat-pending" style="font-size:13px;color:var(--text-muted);"></span>
+  </div>
+
+  <div id="bulk-bar" class="bulk-bar">
+    <span id="bulk-count"></span>
+    <button id="bulk-resend-btn">Resend</button>
+    <button id="bulk-deselect-btn" style="background:transparent;border:none;color:rgba(255,255,255,.7);cursor:pointer;margin-left:auto;">✕ Clear selection</button>
+  </div>
+
+  <div class="card">
+    <div id="investor-header" class="investor-header" style="display:none;">
+      <input type="checkbox" id="select-all" style="width:14px;height:14px;cursor:pointer;">
+      <button class="sort-btn" data-col="name">Investor <span class="sort-indicator">↕</span></button>
+      <button class="sort-btn" data-col="email">Email <span class="sort-indicator">↕</span></button>
+      <button class="sort-btn" data-col="status">Status <span class="sort-indicator">↕</span></button>
+      <button class="sort-btn" data-col="activity">Last Activity <span class="sort-indicator">↕</span></button>
+      <span></span>
+    </div>
+    <div id="investors-list"></div>
+    <div id="empty-state" style="display:none;padding:40px 0;text-align:center;">
+      <p>No investors yet. Add an investor to send them a questionnaire link.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  const MATTER_ID = params.get('id');
+  if (!MATTER_ID) location.href = '/dashboard.html';
+
+  let matterData = null;
+  let allContacts = [];
+  let allInvs = [];
+  let selectedIds = new Set();
+  let sortState = { col: null, dir: 'asc' };
+
+  async function init() {
+    const meRes = await fetch('/api/me');
+    if (!meRes.ok) { location.href = '/'; return; }
+    const me = await meRes.json();
+    document.getElementById('user-name').textContent = me.full_name;
+    loadMatter();
+  }
+
+  async function loadMatter() {
+    const res = await fetch(`/api/matters/${MATTER_ID}`);
+    if (!res.ok) { location.href = '/dashboard.html'; return; }
+    matterData = await res.json();
+
+    document.title = matterData.name + ' — Matter';
+    document.getElementById('matter-name').textContent = matterData.name;
+    document.getElementById('matter-desc').textContent = matterData.description || '';
+
+    const invs = matterData.invitations || [];
+    const completed = invs.filter(i => i.status === 'signed' || i.status === 'completed').length;
+    const pending = invs.filter(i => i.status !== 'signed' && i.status !== 'completed').length;
+    document.getElementById('stat-total').textContent = `${invs.length} investor${invs.length !== 1 ? 's' : ''}`;
+    document.getElementById('stat-completed').textContent = `${completed} completed`;
+    document.getElementById('stat-pending').textContent = `${pending} pending`;
+
+    allInvs = invs;
+    applySort();
+  }
+
+  function statusLabel(s) {
+    return { sent:'Sent', opened:'Opened', in_progress:'In Progress', signed:'Signed', completed:'Signed', revised:'Awaiting Re-signature', draft:'Draft' }[s] || s;
+  }
+
+  const STATUS_ORDER = ['draft','sent','opened','in_progress','revised','signed','completed'];
+
+  function activityDate(inv) {
+    return inv.completed_at || inv.opened_at || inv.sent_at || '';
+  }
+
+  function applySort() {
+    let sorted = [...allInvs];
+    if (sortState.col) {
+      sorted.sort((a, b) => {
+        let va, vb;
+        if (sortState.col === 'name') { va = (a.contact_name||'').toLowerCase(); vb = (b.contact_name||'').toLowerCase(); }
+        else if (sortState.col === 'email') { va = (a.contact_email||'').toLowerCase(); vb = (b.contact_email||'').toLowerCase(); }
+        else if (sortState.col === 'status') { va = STATUS_ORDER.indexOf(a.status); vb = STATUS_ORDER.indexOf(b.status); }
+        else if (sortState.col === 'activity') { va = activityDate(a); vb = activityDate(b); }
+        if (va < vb) return sortState.dir === 'asc' ? -1 : 1;
+        if (va > vb) return sortState.dir === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+    renderInvestors(sorted);
+    updateSortButtons();
+  }
+
+  function updateSortButtons() {
+    document.querySelectorAll('.sort-btn').forEach(btn => {
+      const isActive = btn.dataset.col === sortState.col;
+      btn.classList.toggle('active', isActive);
+      const ind = btn.querySelector('.sort-indicator');
+      ind.textContent = isActive ? (sortState.dir === 'asc' ? '↑' : '↓') : '↕';
+    });
+  }
+
+  function renderInvestors(invs) {
+    const list = document.getElementById('investors-list');
+    const empty = document.getElementById('empty-state');
+    const header = document.getElementById('investor-header');
+
+    if (!invs.length) { list.innerHTML=''; empty.style.display='block'; header.style.display='none'; return; }
+    empty.style.display='none'; header.style.display='grid';
+
+    list.innerHTML = invs.map(inv => {
+      const isChecked = selectedIds.has(inv.id);
+      const dateStr = inv.completed_at
+        ? new Date(inv.completed_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
+        : inv.opened_at
+          ? new Date(inv.opened_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
+          : inv.sent_at ? new Date(inv.sent_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+      return `
+        <div class="investor-row">
+          <div><input type="checkbox" class="row-check" data-id="${inv.id}" style="width:14px;height:14px;cursor:pointer;" ${isChecked ? 'checked' : ''}></div>
+          <div>
+            <div style="font-weight:500;">${esc(inv.contact_name)}</div>
+            ${inv.entity_name ? `<div style="font-size:11px;color:var(--text-muted);">${esc(inv.entity_name)}</div>` : ''}
+          </div>
+          <div style="color:var(--text-muted);">${esc(inv.contact_email)}</div>
+          <div><span class="status-badge status-${inv.status}">${statusLabel(inv.status)}</span></div>
+          <div style="color:var(--text-muted);font-size:12px;">${dateStr}</div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;">
+            ${inv.submission_id && (inv.status === 'signed' || inv.status === 'completed')
+              ? `<a href="/receipt.html?id=${inv.submission_id}" class="btn btn-outline" style="font-size:12px;padding:5px 12px;">View PDF</a>`
+              : ''}
+            ${inv.submission_id
+              ? `<a href="/questionnaire.html?id=${inv.submission_id}" class="btn btn-ghost" style="font-size:12px;padding:5px 12px;">${inv.status === 'signed' || inv.status === 'completed' ? 'Edit' : 'View'}</a>`
+              : ''}
+            <button class="btn btn-outline resend-btn" data-id="${inv.id}" style="font-size:12px;padding:5px 12px;">Resend</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    list.querySelectorAll('.resend-btn').forEach(btn => {
+      btn.addEventListener('click', () => resendInvitation(btn.dataset.id, btn));
+    });
+
+    list.querySelectorAll('.row-check').forEach(cb => {
+      cb.addEventListener('change', () => {
+        if (cb.checked) selectedIds.add(cb.dataset.id);
+        else selectedIds.delete(cb.dataset.id);
+        syncSelectAll();
+        updateBulkBar();
+      });
+    });
+  }
+
+  function syncSelectAll() {
+    const all = document.querySelectorAll('.row-check');
+    const sa = document.getElementById('select-all');
+    if (!sa) return;
+    const checked = [...all].filter(c => c.checked).length;
+    sa.checked = all.length > 0 && checked === all.length;
+    sa.indeterminate = checked > 0 && checked < all.length;
+  }
+
+  function updateBulkBar() {
+    const bar = document.getElementById('bulk-bar');
+    const count = selectedIds.size;
+    if (count > 0) {
+      bar.classList.add('visible');
+      document.getElementById('bulk-count').textContent = `${count} investor${count !== 1 ? 's' : ''} selected`;
+    } else {
+      bar.classList.remove('visible');
+    }
+  }
+
+  async function resendInvitation(invId, btn) {
+    btn.disabled = true; btn.textContent = 'Sending…';
+    const res = await fetch(`/api/invitations/${invId}/resend`, { method:'POST' });
+    const data = await res.json();
+    if (res.ok) {
+      showBanner('Invitation resent.', 'success');
+      if (data.link) showLinkModal(data.link);
+    } else {
+      showBanner(data.error || 'Failed to resend.', 'error');
+    }
+    btn.disabled = false; btn.textContent = 'Resend';
+  }
+
+  // ── Sort headers ──
+  document.addEventListener('click', e => {
+    const btn = e.target.closest('.sort-btn');
+    if (!btn) return;
+    const col = btn.dataset.col;
+    if (sortState.col === col) sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
+    else { sortState.col = col; sortState.dir = 'asc'; }
+    applySort();
+  });
+
+  // ── Select all ──
+  document.addEventListener('change', e => {
+    if (e.target.id === 'select-all') {
+      const checks = document.querySelectorAll('.row-check');
+      checks.forEach(cb => {
+        cb.checked = e.target.checked;
+        if (e.target.checked) selectedIds.add(cb.dataset.id);
+        else selectedIds.delete(cb.dataset.id);
+      });
+      updateBulkBar();
+    }
+  });
+
+  // ── Bulk actions ──
+  document.getElementById('bulk-deselect-btn').addEventListener('click', () => {
+    selectedIds.clear();
+    document.querySelectorAll('.row-check').forEach(cb => cb.checked = false);
+    const sa = document.getElementById('select-all');
+    if (sa) { sa.checked = false; sa.indeterminate = false; }
+    updateBulkBar();
+  });
+
+  document.getElementById('bulk-resend-btn').addEventListener('click', async () => {
+    const ids = [...selectedIds];
+    const btn = document.getElementById('bulk-resend-btn');
+    btn.disabled = true; btn.textContent = 'Sending…';
+    let ok = 0, fail = 0;
+    for (const id of ids) {
+      const res = await fetch(`/api/invitations/${id}/resend`, { method: 'POST' });
+      if (res.ok) ok++; else fail++;
+    }
+    btn.disabled = false; btn.textContent = 'Resend';
+    showBanner(`Resent ${ok} invitation${ok !== 1 ? 's' : ''}${fail ? `, ${fail} failed` : ''}.`, fail ? 'error' : 'success');
+    selectedIds.clear();
+    updateBulkBar();
+    await loadMatter();
+  });
+
+  // ── Add investor modal ──
+  document.getElementById('add-investor-btn').addEventListener('click', () => {
+    document.getElementById('contact-modal').style.display = 'flex';
+    document.getElementById('c-name').focus();
+  });
+  document.getElementById('cancel-contact-btn').addEventListener('click', closeContactModal);
+
+  document.getElementById('save-contact-btn').addEventListener('click', async () => {
+    const name = document.getElementById('c-name').value.trim();
+    const email = document.getElementById('c-email').value.trim();
+    const entity = document.getElementById('c-entity').value.trim();
+    if (!name || !email) { showContactAlert('Name and email are required.'); return; }
+
+    const btn = document.getElementById('save-contact-btn');
+    btn.disabled = true; btn.textContent = 'Sending…';
+
+    // Create contact
+    const cRes = await fetch('/api/contacts', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name, email, entity_name: entity }) });
+    if (!cRes.ok) { const d=await cRes.json(); showContactAlert(d.error); btn.disabled=false; btn.textContent='Add & Send Invitation'; return; }
+    const contact = await cRes.json();
+
+    // Send invitation
+    const iRes = await fetch(`/api/matters/${MATTER_ID}/invite`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ contact_id: contact.id }) });
+    const iData = await iRes.json();
+    btn.disabled = false; btn.textContent = 'Add & Send Invitation';
+
+    closeContactModal();
+    await loadMatter();
+
+    if (iData.link) showLinkModal(iData.link);
+    else showBanner('Investor added and invitation sent.', 'success');
+  });
+
+  function closeContactModal() {
+    document.getElementById('contact-modal').style.display = 'none';
+    document.getElementById('contact-alert').style.display = 'none';
+    ['c-name','c-email','c-entity'].forEach(id => document.getElementById(id).value = '');
+  }
+  function showContactAlert(msg) {
+    const el = document.getElementById('contact-alert');
+    el.textContent = msg; el.style.display = 'block';
+  }
+
+  // ── Link modal ──
+  function showLinkModal(link) {
+    document.getElementById('link-input').value = link;
+    document.getElementById('link-modal').style.display = 'flex';
+  }
+  document.getElementById('copy-link-btn').addEventListener('click', () => {
+    navigator.clipboard.writeText(document.getElementById('link-input').value);
+    document.getElementById('copy-link-btn').textContent = 'Copied!';
+    setTimeout(() => document.getElementById('copy-link-btn').textContent = 'Copy', 2000);
+  });
+  document.getElementById('close-link-modal-btn').addEventListener('click', () => {
+    document.getElementById('link-modal').style.display = 'none';
+  });
+
+  function showBanner(msg, type) {
+    const el = document.getElementById('alert-banner');
+    el.className = `alert alert-${type}`; el.textContent = msg; el.style.display = 'block';
+    setTimeout(() => el.style.display = 'none', 4000);
+  }
+  function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  init();
+</script>
+</body>
+</html>

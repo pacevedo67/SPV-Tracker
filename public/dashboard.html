@@ -9,18 +9,68 @@
 <body>
 <header class="site-header">
   <div class="site-header-inner">
-    <a href="/dashboard.html" class="site-logo">Investor Questionnaire</a>
+    <a href="/dashboard.html" class="site-logo">
+      <div class="logo-mark">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 11L5.5 7 8 9.5 12 4" stroke="#fff" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      SPV Tracker
+    </a>
     <nav class="site-nav">
       <span id="user-name" style="font-size:13px;color:var(--text-muted);"></span>
+      <a id="admin-link" href="/admin.html" style="display:none;">Settings</a>
       <button id="logout-btn">Sign out</button>
     </nav>
   </div>
 </header>
 
 <div class="page-wide">
-  <!-- New submission modal overlay -->
-  <div id="modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:200;display:none;align-items:center;justify-content:center;">
-    <div style="background:var(--surface);border:1px solid var(--border);padding:40px;width:100%;max-width:480px;margin:24px;">
+  <!-- Tabs -->
+  <div style="display:flex;border-bottom:1px solid var(--border);margin-bottom:32px;">
+    <button class="dash-tab active" data-tab="matters">Matters</button>
+    <button class="dash-tab" data-tab="self">My Questionnaires</button>
+  </div>
+
+  <!-- Matters tab -->
+  <div id="tab-matters">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:32px;flex-wrap:wrap;gap:12px;">
+      <div>
+        <h1>Matters</h1>
+        <p>Organize investor questionnaires by deal or transaction.</p>
+      </div>
+      <button class="btn btn-primary" id="new-matter-btn">+ New Matter</button>
+    </div>
+
+    <!-- New Matter form (inline) -->
+    <div id="new-matter-form" style="display:none;margin-bottom:24px;" class="card">
+      <div style="padding:0;">
+        <h3 style="margin-bottom:16px;">New Matter</h3>
+        <div class="field">
+          <label class="label" for="m-name">Matter / Deal Name</label>
+          <input type="text" id="m-name" placeholder="e.g. Series A — Acme Corp">
+        </div>
+        <div class="field">
+          <label class="label" for="m-desc">Description <span style="color:var(--text-muted);font-weight:400;">(optional)</span></label>
+          <input type="text" id="m-desc" placeholder="Brief description of the transaction">
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" id="save-matter-btn">Create Matter</button>
+          <button class="btn btn-ghost" id="cancel-matter-btn">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="matters-list" class="submission-list"></div>
+    <div id="matters-empty" style="display:none;" class="empty">
+      <p>No matters yet. Create one to start sending questionnaires to investors.</p>
+      <button class="btn btn-outline" id="new-matter-btn-2">+ New Matter</button>
+    </div>
+  </div>
+
+  <!-- Self-fill tab -->
+  <div id="tab-self" style="display:none;">
+    <!-- New submission modal overlay -->
+  <div id="modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.4);z-index:200;align-items:center;justify-content:center;">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:36px;width:100%;max-width:480px;margin:24px;box-shadow:0 8px 32px rgba(0,0,0,.12);">
       <h2 style="margin-bottom:20px;">Start questionnaire</h2>
       <div id="modal-alert" style="display:none;"></div>
 
@@ -62,8 +112,8 @@
   </div>
 
   <!-- Existing investor modal -->
-  <div id="investor-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:200;align-items:center;justify-content:center;">
-    <div style="background:var(--surface);border:1px solid var(--border);padding:40px;width:100%;max-width:480px;margin:24px;">
+  <div id="investor-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.4);z-index:200;align-items:center;justify-content:center;">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:36px;width:100%;max-width:480px;margin:24px;box-shadow:0 8px 32px rgba(0,0,0,.12);">
       <h2 style="margin-bottom:4px;">Select investor</h2>
       <p style="margin-bottom:20px;font-size:13px;">Choose an existing investor profile or create a new one.</p>
       <div id="investor-list-modal" class="check-group" style="margin-bottom:20px;max-height:240px;overflow-y:auto;"></div>
@@ -77,8 +127,8 @@
 
   <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:32px;flex-wrap:wrap;gap:12px;">
     <div>
-      <h1>Questionnaires</h1>
-      <p>Manage and submit accredited investor questionnaires.</p>
+      <h1>My Questionnaires</h1>
+      <p>Questionnaires you've filled out yourself.</p>
     </div>
     <button class="btn btn-primary" id="new-btn">+ New questionnaire</button>
   </div>
@@ -90,6 +140,7 @@
       <button class="btn btn-outline" id="new-btn-2">+ New questionnaire</button>
     </div>
   </div>
+  </div><!-- end tab-self -->
 </div>
 
 <script>
@@ -97,14 +148,69 @@
   let investors = [];
   let selectedInvestorId = null;
 
+  // ── Tabs ──
+  document.querySelectorAll('.dash-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.dash-tab').forEach(t => t.classList.toggle('active', t === tab));
+      document.getElementById('tab-matters').style.display = tab.dataset.tab === 'matters' ? 'block' : 'none';
+      document.getElementById('tab-self').style.display = tab.dataset.tab === 'self' ? 'block' : 'none';
+    });
+  });
+
   async function init() {
     const res = await fetch('/api/me');
     if (!res.ok) { window.location.href = '/'; return; }
     currentUser = await res.json();
     document.getElementById('user-name').textContent = currentUser.full_name;
+    if (currentUser.role === 'admin') document.getElementById('admin-link').style.display = '';
+    loadMatters();
     loadSubmissions();
     loadInvestors();
   }
+
+  // ── Matters ──
+  async function loadMatters() {
+    const res = await fetch('/api/matters');
+    if (!res.ok) return;
+    const matters = await res.json();
+    const list = document.getElementById('matters-list');
+    const empty = document.getElementById('matters-empty');
+    if (!matters.length) { list.style.display='none'; empty.style.display='block'; return; }
+    empty.style.display='none'; list.style.display='flex';
+    list.innerHTML = matters.map(m => `
+      <a href="/matter.html?id=${m.id}" class="submission-card">
+        <div class="submission-card-info">
+          <h4>${escHtml(m.name)}</h4>
+          <p>${m.total_invited} investor${m.total_invited!==1?'s':''} &nbsp;·&nbsp; ${m.total_completed} completed${m.description ? ' &nbsp;·&nbsp; ' + escHtml(m.description) : ''}</p>
+        </div>
+        <span class="badge badge-draft" style="white-space:nowrap;">${m.total_completed}/${m.total_invited} done</span>
+      </a>
+    `).join('');
+  }
+
+  document.getElementById('new-matter-btn').addEventListener('click', () => {
+    document.getElementById('new-matter-form').style.display = 'block';
+    document.getElementById('m-name').focus();
+  });
+  document.getElementById('new-matter-btn-2')?.addEventListener('click', () => {
+    document.getElementById('new-matter-form').style.display = 'block';
+    document.getElementById('m-name').focus();
+  });
+  document.getElementById('cancel-matter-btn').addEventListener('click', () => {
+    document.getElementById('new-matter-form').style.display = 'none';
+  });
+  document.getElementById('save-matter-btn').addEventListener('click', async () => {
+    const name = document.getElementById('m-name').value.trim();
+    if (!name) return;
+    const res = await fetch('/api/matters', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name, description: document.getElementById('m-desc').value.trim() }) });
+    if (res.ok) {
+      const m = await res.json();
+      document.getElementById('new-matter-form').style.display = 'none';
+      document.getElementById('m-name').value = '';
+      document.getElementById('m-desc').value = '';
+      location.href = `/matter.html?id=${m.id}`;
+    }
+  });
 
   async function loadInvestors() {
     const res = await fetch('/api/investors');
@@ -119,15 +225,20 @@
     const empty = document.getElementById('empty-state');
     if (!data.length) { list.style.display='none'; empty.style.display='block'; return; }
     empty.style.display='none'; list.style.display='flex';
-    list.innerHTML = data.map(s => `
-      <a href="/questionnaire.html?id=${s.id}" class="submission-card">
-        <div class="submission-card-info">
-          <h4>${escHtml(s.investor_name)}</h4>
-          <p>Updated ${new Date(s.updated_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</p>
-        </div>
-        <span class="badge badge-${s.status}">${s.status}</span>
-      </a>
-    `).join('');
+    list.innerHTML = data.map(s => {
+      const href = s.status === 'submitted' ? `/receipt.html?id=${s.id}` : `/questionnaire.html?id=${s.id}`;
+      const dateStr = new Date(s.updated_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+      const label = s.status === 'submitted' ? 'View / Download PDF' : 'Continue editing';
+      return `
+        <a href="${href}" class="submission-card">
+          <div class="submission-card-info">
+            <h4>${escHtml(s.investor_name)}</h4>
+            <p>${dateStr} &nbsp;·&nbsp; ${label}</p>
+          </div>
+          <span class="badge badge-${s.status}">${s.status}</span>
+        </a>
+      `;
+    }).join('');
   }
 
   function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }

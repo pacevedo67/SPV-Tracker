@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: spv-tracker
+    runtime: node
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /api/me
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SESSION_SECRET
+        generateValue: true          # Render auto-generates a secure secret
+      - key: DATABASE_PATH
+        value: /data/questionnaire.db
+      - key: BASE_URL
+        sync: false                  # Set to your Render URL, e.g. https://spv-tracker.onrender.com
+      - key: RESEND_API_KEY
+        sync: false                  # Paste your key from resend.com/api-keys
+      - key: FROM_EMAIL
+        sync: false                  # Must be a verified domain in Resend, e.g. noreply@yourdomain.com
+      - key: FROM_NAME
+        value: SPV Tracker
+
+    # Persistent disk — keeps your SQLite database across deploys and restarts.
+    # Requires a paid Render plan (Individual or higher, ~$7/mo for 1 GB).
+    # Without this, all data is lost on every deploy.
+    disk:
+      name: spv-data
+      mountPath: /data
+      sizeGB: 1

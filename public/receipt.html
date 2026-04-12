@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Investor Questionnaire — Signed Copy</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --accent: #2563eb;
+      --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    }
+    body { font-family: var(--font); color: var(--text); font-size: 13px; line-height: 1.6; background: #f8fafc; -webkit-font-smoothing: antialiased; }
+
+    /* Screen layout */
+    .screen-bar { display: flex; align-items: center; justify-content: space-between; padding: 10px 32px; border-bottom: 1px solid var(--border); background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+    .screen-bar h2 { font-size: 13px; font-weight: 600; }
+    .btn-print { padding: 7px 16px; background: var(--accent); color: #fff; border: none; font-family: var(--font); font-size: 13px; font-weight: 500; cursor: pointer; border-radius: 4px; }
+    .btn-print:hover { background: #1d4ed8; }
+    .btn-print:disabled { opacity: 0.55; cursor: not-allowed; }
+    .back-link { font-size: 13px; color: var(--muted); text-decoration: none; display: flex; align-items: center; gap: 5px; }
+    .back-link:hover { color: var(--text); }
+
+    /* Document */
+    .doc { max-width: 780px; margin: 32px auto; padding: 0 24px 80px; }
+
+    /* Header */
+    .doc-header { border-bottom: 2px solid var(--text); padding-bottom: 20px; margin-bottom: 32px; }
+    .doc-header h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 4px; }
+    .doc-header .meta { font-size: 12px; color: var(--muted); }
+
+    /* Sections */
+    .section { margin-bottom: 32px; }
+    .section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); border-bottom: 1px solid var(--border); padding-bottom: 6px; margin-bottom: 16px; }
+
+    /* Fields */
+    .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+    .field-item { padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
+    .field-item.full { grid-column: 1 / -1; }
+    .field-label { font-size: 11px; color: var(--muted); margin-bottom: 2px; }
+    .field-value { font-size: 13px; font-weight: 500; }
+    .field-value.empty { color: var(--muted); font-weight: 400; font-style: italic; }
+
+    /* Q&A rows */
+    .qa-row { display: flex; align-items: flex-start; gap: 12px; padding: 8px 0; border-bottom: 1px solid #f0f0f0; font-size: 12px; }
+    .qa-row:last-child { border-bottom: none; }
+    .qa-q { flex: 1; line-height: 1.5; }
+    .qa-a { flex-shrink: 0; width: 72px; text-align: right; font-weight: 600; }
+    .qa-a.yes { color: #16a34a; }
+    .qa-a.no { color: #dc2626; }
+    .qa-a.correct { color: #16a34a; }
+    .qa-a.not_correct { color: #dc2626; }
+    .qa-a.blank { color: var(--muted); font-weight: 400; font-style: italic; }
+
+    /* Signature block */
+    .sig-section { margin-top: 40px; border-top: 2px solid var(--text); padding-top: 24px; }
+    .sig-section .section-title { border-bottom-color: var(--border); }
+    .sig-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; margin-top: 16px; align-items: end; }
+    .sig-box { border-bottom: 1px solid var(--text); min-height: 70px; display: flex; align-items: flex-end; padding-bottom: 4px; }
+    .sig-typed { font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-size: 32px; line-height: 1.1; }
+    .sig-img { max-width: 100%; max-height: 70px; object-fit: contain; }
+    .sig-meta { font-size: 11px; color: var(--muted); margin-top: 4px; }
+    .date-box { border-bottom: 1px solid var(--text); padding-bottom: 4px; min-height: 70px; display: flex; align-items: flex-end; }
+    .date-val { font-size: 14px; font-weight: 500; }
+
+    /* Acknowledgment */
+    .ack-text { font-size: 11px; color: var(--muted); line-height: 1.7; border: 1px solid var(--border); padding: 16px; margin-bottom: 24px; }
+
+    /* Print */
+    @media print {
+      .screen-bar { display: none !important; }
+      .doc { margin: 0; padding: 0 0 20px; max-width: 100%; }
+      body { font-size: 11px; }
+      .doc-header h1 { font-size: 16px; }
+      .section { margin-bottom: 20px; page-break-inside: avoid; }
+      .sig-section { page-break-inside: avoid; }
+      .qa-row { padding: 5px 0; }
+      @page { margin: 18mm 16mm; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="screen-bar">
+  <a id="back-link" href="/dashboard.html" class="back-link"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 2L4 7l5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Dashboard</a>
+  <h2>Signed Questionnaire</h2>
+  <button class="btn-print" id="download-btn">Download PDF</button>
+</div>
+
+<div class="doc" id="doc">
+  <div id="doc-content" style="display:none;">
+
+    <div class="doc-header">
+      <h1>Accredited Investor Questionnaire</h1>
+      <div class="meta" id="doc-meta"></div>
+    </div>
+
+    <!-- General Information -->
+    <div class="section" id="sec-general"></div>
+
+    <!-- AML / Source of Funds -->
+    <div class="section" id="sec-aml"></div>
+
+    <!-- Item 1 / Accredited Investor -->
+    <div class="section" id="sec-item1"></div>
+
+    <!-- Item 2 / Bad Actor -->
+    <div class="section" id="sec-item2"></div>
+
+    <!-- Category II -->
+    <div class="section" id="sec-cat2"></div>
+
+    <!-- Category III -->
+    <div class="section" id="sec-cat3"></div>
+
+    <!-- Category IV -->
+    <div class="section" id="sec-cat4"></div>
+
+    <!-- Category V -->
+    <div class="section" id="sec-cat5"></div>
+
+    <!-- Acknowledgment + Signature -->
+    <div class="sig-section">
+      <p class="ack-text">INVESTOR IS AWARE AND UNDERSTANDS THAT THE INFORMATION PROVIDED IN THIS QUESTIONNAIRE WILL BE RELIED UPON BY THE COMPANY AND ITS REPRESENTATIVES IN DETERMINING INVESTOR'S STATUS AS AN ACCREDITED INVESTOR, QUALIFIED CLIENT AND WHETHER INVESTOR OTHERWISE MEETS THE SUITABILITY REQUIREMENTS NECESSARY FOR THE PURCHASE AND OWNERSHIP OF THE SECURITIES IN THE COMPANY. INVESTOR THEREFORE REPRESENTS AND WARRANTS THAT, TO THE BEST OF INVESTOR'S KNOWLEDGE AND BELIEF, THE ABOVE INFORMATION SUPPLIED BY INVESTOR IS TRUE AND CORRECT IN ALL RESPECTS AS OF THE DATE HEREOF. BY SIGNING BELOW, INVESTOR CERTIFIES THAT AT LEAST ONE OF THE REPRESENTATIONS MARKED "YES" IN CATEGORY I ABOVE IS TRUE AND CORRECT AS OF THE DATE HEREOF.</p>
+      <div class="section-title">Signature</div>
+      <div id="sec-sig"></div>
+    </div>
+
+  </div>
+
+  <div id="loading" style="padding:60px 0;text-align:center;color:#737373;font-size:14px;">Loading…</div>
+</div>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  const SUB_ID = params.get('id');
+  if (!SUB_ID) location.href = '/dashboard.html';
+
+  function val(v) { return v || '<span class="empty">—</span>'; }
+  function yesNo(v) {
+    if (!v) return '<span class="qa-a blank">—</span>';
+    if (v === 'yes') return '<span class="qa-a yes">Yes</span>';
+    if (v === 'no') return '<span class="qa-a no">No</span>';
+    if (v === 'correct') return '<span class="qa-a correct">Correct</span>';
+    if (v === 'not_correct') return '<span class="qa-a not_correct">Not Correct</span>';
+    return `<span class="qa-a">${v}</span>`;
+  }
+  function field(label, value) {
+    const cls = value ? 'field-value' : 'field-value empty';
+    return `<div class="field-item"><div class="field-label">${label}</div><div class="${cls}">${value || '—'}</div></div>`;
+  }
+  function fieldFull(label, value) {
+    const cls = value ? 'field-value' : 'field-value empty';
+    return `<div class="field-item full"><div class="field-label">${label}</div><div class="${cls}">${value || '—'}</div></div>`;
+  }
+  function qaRow(q, answer) {
+    return `<div class="qa-row"><div class="qa-q">${q}</div>${yesNo(answer)}</div>`;
+  }
+  function sectionTitle(t) { return `<div class="section-title">${t}</div>`; }
+
+  async function load() {
+    const [subRes, meRes] = await Promise.all([
+      fetch(`/api/submissions/${SUB_ID}`),
+      fetch('/api/me'),
+    ]);
+    if (!subRes.ok) { location.href = '/dashboard.html'; return; }
+    const data = await subRes.json();
+    const me = meRes.ok ? await meRes.json() : {};
+
+    document.getElementById('back-link').href = '/dashboard.html';
+
+    const gi  = data.general_info       ? JSON.parse(data.general_info)       : {};
+    const ii  = data.investment_info     ? JSON.parse(data.investment_info)     : {};
+    const c2  = data.category_ii         ? JSON.parse(data.category_ii)         : {};
+    const c3  = data.category_iii        ? JSON.parse(data.category_iii)        : {};
+    const c4  = data.category_iv         ? JSON.parse(data.category_iv)         : {};
+    const c5  = data.category_v          ? JSON.parse(data.category_v)          : {};
+
+    // Meta
+    const signedDate = data.signed_at
+      ? new Date(data.signed_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+      : new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    document.getElementById('doc-meta').innerHTML =
+      `Submitted by: ${me.full_name || '—'} &nbsp;|&nbsp; Date: ${signedDate} &nbsp;|&nbsp; Investor: ${data.investor_name || gi.legal_name || '—'}`;
+
+    // ── General Information ──
+    const ownershipLabel = { individual: 'Natural Person / Individual', ira: 'IRA / Retirement Account', trust: 'Trust', partnership: 'Partnership', llc: 'Limited Liability Company', corporation: 'Corporation', other: `Other: ${gi.ownership_other || ''}` };
+    let generalHTML = sectionTitle('Section 1 — General Information');
+    generalHTML += `<div class="field-grid">`;
+    generalHTML += field('Legal Name of Investor', gi.legal_name);
+    generalHTML += field('Ownership / Entity Type', gi.ownership_type ? (ownershipLabel[gi.ownership_type] || gi.ownership_type) : null);
+
+    if (gi.ownership_type === 'individual') {
+      generalHTML += field('Date of Birth', gi.dob);
+      generalHTML += field('Country of Birth', gi.country_birth);
+      generalHTML += fieldFull('Country of Citizenship', gi.country_citizenship);
+    } else if (gi.ownership_type === 'ira') {
+      generalHTML += field('IRA Trustee / Custodian', gi.ira_trustee);
+      generalHTML += field('IRA EIN', gi.ira_ein);
+    } else {
+      generalHTML += field('State of Organization', gi.state_org);
+      generalHTML += field('Country of Organization', gi.country_org);
+      generalHTML += field('Date of Formation', gi.date_formation);
+      generalHTML += field('Contact Person', gi.contact_person);
+    }
+
+    generalHTML += field('Email', gi.email);
+    generalHTML += field('Phone', gi.phone);
+    generalHTML += fieldFull('Address', [gi.street, gi.city, gi.state, gi.zip, gi.country].filter(Boolean).join(', ') || null);
+    generalHTML += `</div>`;
+    document.getElementById('sec-general').innerHTML = generalHTML;
+
+    // ── AML ──
+    let amlHTML = sectionTitle('Section 2 — Anti-Money Laundering / Source of Funds');
+    amlHTML += `<div class="field-grid">`;
+    if (gi.ownership_type === 'individual' || gi.ownership_type === 'ira') {
+      amlHTML += fieldFull('Source of Funds / Wealth', ii.aml_source_personal);
+      amlHTML += field('Occupation', ii.aml_occupation);
+    } else {
+      amlHTML += fieldFull('Source of Funds / Wealth', ii.aml_source_entity);
+      amlHTML += fieldFull('Nature of Business', ii.aml_nature);
+    }
+    amlHTML += field('Purpose of Investment', ii.aml_purpose);
+    amlHTML += field('Expected Frequency of Transactions', ii.aml_frequency);
+    amlHTML += `</div>`;
+    document.getElementById('sec-aml').innerHTML = amlHTML;
+
+    // ── Item 1 — Accredited Investor ──
+    let item1HTML = sectionTitle('Section 3 — Accredited Investor Qualification (Item 1)');
+    if (gi.ownership_type === 'individual' || gi.ownership_type === 'ira' || !gi.ownership_type) {
+      item1HTML += `<p style="font-size:11px;color:var(--muted);margin-bottom:10px;">Natural Person / Individual Categories:</p>`;
+      item1HTML += qaRow('<strong>(a)</strong> Individual income exceeded $200,000 in each of the last two years; reasonably expects same this year.', ii.i1a);
+      item1HTML += qaRow('<strong>(b)</strong> Joint income with spouse or spousal equivalent exceeded $300,000 in each of the last two years; reasonably expects same this year.', ii.i1b);
+      item1HTML += qaRow('<strong>(c)</strong> Net worth or joint net worth with spouse exceeds $1,000,000, excluding primary residence.', ii.i1c);
+      item1HTML += qaRow('<strong>(d)</strong> Holds in good standing a Series 7, Series 65, or Series 82 FINRA license.', ii.i1d);
+      item1HTML += qaRow('<strong>(e)</strong> Family client of a family office with AUM > $5,000,000, directed by a sophisticated person.', ii.i1e);
+      item1HTML += qaRow('<strong>(f)</strong> Knowledgeable employee of the Company under Rule 3c-5(a)(4).', ii.i1f);
+      item1HTML += `<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);"><p style="font-size:11px;color:var(--muted);margin-bottom:8px;">Suitability:</p>`;
+      item1HTML += qaRow('Investment amount exceeds 10% of net worth or joint net worth.', ii.i1_suitability);
+      item1HTML += `</div>`;
+    } else {
+      item1HTML += `<p style="font-size:11px;color:var(--muted);margin-bottom:10px;">Entity Categories:</p>`;
+      item1HTML += qaRow('<strong>(i)</strong> ERISA employee benefit plan with assets > $5,000,000.', ii.i2i);
+      if (ii.i2i === 'yes') {
+        item1HTML += qaRow('&nbsp;&nbsp;&nbsp;Investment decisions made by a bank, insurance company, or registered investment adviser acting as fiduciary?', ii.i2i_fid);
+        if (ii.i2i_fid_name) item1HTML += `<div class="field-item" style="padding-left:20px;"><div class="field-label">Fiduciary Name</div><div class="field-value">${ii.i2i_fid_name}</div></div>`;
+      }
+      item1HTML += qaRow('<strong>(ii)</strong> Tax-exempt 501(c)(3), corporation, business trust, or partnership with assets > $5,000,000.', ii.i2ii);
+      item1HTML += qaRow('<strong>(iii)</strong> Trust with total assets > $5,000,000, not formed for the specific purpose of acquiring the securities offered, directed by a sophisticated person.', ii.i2iii);
+      item1HTML += qaRow('<strong>(iv)</strong> Bank, savings and loan, broker-dealer, registered investment adviser, insurance company, or registered investment company.', ii.i2iv);
+      item1HTML += qaRow('<strong>(v)</strong> Business development company, SBIC, RBIC, or private business development company.', ii.i2v);
+      item1HTML += qaRow('<strong>(vi)</strong> Government plan with total assets > $5,000,000.', ii.i2vi);
+      item1HTML += qaRow('<strong>(vii)</strong> Family office with AUM > $5,000,000, directed by a sophisticated person.', ii.i2vii);
+      item1HTML += qaRow('<strong>(viii)</strong> Family client of a qualifying family office.', ii.i2viii);
+      item1HTML += qaRow('<strong>(ix)</strong> Entity in which all equity owners are accredited investors.', ii.i2ix);
+      item1HTML += qaRow('<strong>(x)</strong> Entity owning investments > $5,000,000, not formed for the specific purpose.', ii.i2x);
+      item1HTML += qaRow('<strong>(xi)</strong> Indian tribe, government body, or foreign law entity owning investments > $5,000,000.', ii.i2xi);
+      item1HTML += qaRow('<strong>(xii)</strong> Qualifies under another category of Rule 501(a).', ii.i2xii);
+      if (ii.i2xii === 'yes' && ii.i2xii_subsection) item1HTML += `<div class="field-item"><div class="field-label">Applicable subsection of Rule 501(a)</div><div class="field-value">${ii.i2xii_subsection}</div></div>`;
+      if (ii.i2xiii) item1HTML += `<div class="field-item full"><div class="field-label">(xiii) State(s) of principal office and state of incorporation / organization</div><div class="field-value">${ii.i2xiii}</div></div>`;
+    }
+    document.getElementById('sec-item1').innerHTML = item1HTML;
+
+    // ── Item 2 — Bad Actor (All Investors) ──
+    let item2HTML = sectionTitle('Section 3 (cont.) — Item 2: All Investors');
+    item2HTML += qaRow('Investor has <strong>not</strong> been subject to any Regulation D Rule 506(d) disqualifying event.', ii.i3);
+    document.getElementById('sec-item2').innerHTML = item2HTML;
+
+    // ── Category II ──
+    let cat2HTML = sectionTitle('Section 4 — Category II: Business Experience & Background');
+    cat2HTML += qaRow('<strong>(i)</strong> Preexisting personal or business relationship with the Company or any of its officers or directors.', c2.c2i);
+    cat2HTML += qaRow('<strong>(ii)</strong> By reason of business or financial experience, has the capacity to protect own interests in this transaction.', c2.c2ii);
+    document.getElementById('sec-cat2').innerHTML = cat2HTML;
+
+    // ── Category III ──
+    let cat3HTML = sectionTitle('Section 5 — Category III: Bad Actor Representations');
+    cat3HTML += qaRow('<strong>(a)</strong> Has <strong>not</strong> been convicted of a felony or misdemeanor in connection with the purchase or sale of any security within the last 10 years.', c3.c3a);
+    cat3HTML += qaRow('<strong>(b)</strong> Is <strong>not</strong> subject to any court order entered in the last 5 years restraining or enjoining conduct in connection with purchase or sale of any security.', c3.c3b);
+    cat3HTML += qaRow('<strong>(c)</strong> Is <strong>not</strong> subject to a Final Order of a state or federal regulatory authority barring association with a regulated entity or based on fraudulent conduct within the last 10 years.', c3.c3c);
+    cat3HTML += qaRow('<strong>(d)</strong> Is <strong>not</strong> subject to an SEC order suspending or revoking registration as broker, dealer, or investment adviser, or barring participation in penny stock offerings.', c3.c3d);
+    cat3HTML += qaRow('<strong>(e)</strong> Is <strong>not</strong> subject to any SEC cease-and-desist order entered in the last 5 years for violation of a scienter-based anti-fraud provision or Section 5 of the Securities Act.', c3.c3e);
+    cat3HTML += qaRow('<strong>(f)</strong> Has <strong>never</strong> been suspended or expelled from membership in, or barred from association with, a registered national securities exchange or affiliated securities association.', c3.c3f);
+    cat3HTML += qaRow('<strong>(g)</strong> Has <strong>not</strong> been named in a registration statement that was the subject of a refusal order or stop order within the last 5 years, and is not currently under such investigation.', c3.c3g);
+    cat3HTML += qaRow('<strong>(h)</strong> Is <strong>not</strong> subject to any USPS false representation order within the last 5 years.', c3.c3h);
+    document.getElementById('sec-cat3').innerHTML = cat3HTML;
+
+    // ── Category IV ──
+    const isEntity = gi.ownership_type && !['individual','ira'].includes(gi.ownership_type);
+    if (isEntity) {
+      let cat4HTML = sectionTitle('Section 6 — Category IV: Investment Company Act Confirmations');
+      cat4HTML += qaRow('<strong>(a)</strong> Is <strong>not</strong> an "investment company" as defined in the Investment Company Act or an entity that would be one but for Section 3(c)(1) or 3(c)(7) exceptions.', c4.c4a);
+      cat4HTML += qaRow('<strong>(b)</strong> Constitutes "one person" for purposes of Section 3(c)(1) of the Investment Company Act.', c4.c4b);
+      if (c4.c4b_owners) cat4HTML += `<div class="field-item"><div class="field-label">Number of beneficial owners (if > 1)</div><div class="field-value">${c4.c4b_owners}</div></div>`;
+      cat4HTML += qaRow('<strong>(c)</strong> Beneficial owners have <strong>no individual discretion</strong> as to participation in the purchase of Units or particular investments made by the Company.', c4.c4c);
+      cat4HTML += qaRow('<strong>(d)</strong> Was <strong>not</strong> organized or recapitalized for the specific purpose of acquiring the Units.', c4.c4d);
+      document.getElementById('sec-cat4').innerHTML = cat4HTML;
+    } else {
+      document.getElementById('sec-cat4').style.display = 'none';
+    }
+
+    // ── Category V ──
+    const qcLabels = {
+      a: '(a) Net worth, including assets held jointly with spouse, in excess of $2,200,000.',
+      b: '(b) At least $1,100,000 under management of the Company immediately after admission.',
+      c: '(c) Qualified Purchaser under Section 2(a)(51)(A) of the Investment Company Act of 1940.',
+      d: '(d) Does not satisfy (a)–(c) above and is not a Qualified Client.',
+      e: '(e) Entity in which all equity owners are Qualified Clients satisfying (a)–(c) above.',
+      f: '(f) Entity but not all equity owners are Qualified Clients satisfying (a)–(c) above.',
+    };
+    let cat5HTML = sectionTitle('Section 7 — Category V: Qualified Client Certification');
+    const qcIndVal = c5.qc_individual;
+    const qcEntVal = c5.qc_entity;
+    if (qcIndVal) cat5HTML += `<div class="field-item full"><div class="field-label">Individual / Trust / Non-Profit</div><div class="field-value">${qcLabels[qcIndVal] || qcIndVal}</div></div>`;
+    if (qcEntVal) cat5HTML += `<div class="field-item full"><div class="field-label">Entity</div><div class="field-value">${qcLabels[qcEntVal] || qcEntVal}</div></div>`;
+    if (!qcIndVal && !qcEntVal) cat5HTML += `<div class="field-item full"><div class="field-value empty">No selection recorded.</div></div>`;
+    document.getElementById('sec-cat5').innerHTML = cat5HTML;
+
+    // ── Signature ──
+    const sigName = data.signature_name || '—';
+    const sigType = data.signature_type || 'type';
+    const sigData = data.signature_data;
+    const sigDate = data.signed_at
+      ? new Date(data.signed_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+      : '—';
+
+    let sigHTML = `<div class="sig-grid">`;
+    sigHTML += `<div>`;
+    sigHTML += `<div class="sig-box">`;
+    if (sigType === 'draw' && sigData && sigData.startsWith('data:image')) {
+      sigHTML += `<img class="sig-img" src="${sigData}" alt="Signature">`;
+    } else {
+      sigHTML += `<span class="sig-typed">${sigName}</span>`;
+    }
+    sigHTML += `</div>`;
+    sigHTML += `<div class="sig-meta">Signature of ${isEntity ? 'Authorized Signatory' : 'Investor'}</div>`;
+    sigHTML += `</div>`;
+    sigHTML += `<div>`;
+    sigHTML += `<div class="date-box"><span class="date-val">${sigDate}</span></div>`;
+    sigHTML += `<div class="sig-meta">Date</div>`;
+    sigHTML += `</div>`;
+    sigHTML += `</div>`;
+    sigHTML += `<div style="margin-top:20px;"><div class="field-item"><div class="field-label">Printed Name</div><div class="field-value">${sigName}</div></div></div>`;
+
+    document.getElementById('sec-sig').innerHTML = sigHTML;
+
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('doc-content').style.display = 'block';
+  }
+
+  load().catch(() => location.href = '/dashboard.html');
+
+  document.getElementById('download-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('download-btn');
+    btn.disabled = true;
+    btn.textContent = 'Generating…';
+
+    try {
+      const { jsPDF } = window.jspdf;
+      const doc = document.getElementById('doc');
+
+      const canvas = await html2canvas(doc, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+      });
+
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 10;
+      const contentW = pageW - margin * 2;
+      const contentH = (canvas.height * contentW) / canvas.width;
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.92);
+
+      let y = margin;
+      let remaining = contentH;
+
+      while (remaining > 0) {
+        const sliceH = Math.min(remaining, pageH - margin * 2);
+        const srcY = (contentH - remaining) * (canvas.height / contentH);
+        const srcH = sliceH * (canvas.height / contentH);
+
+        const sliceCanvas = document.createElement('canvas');
+        sliceCanvas.width = canvas.width;
+        sliceCanvas.height = srcH;
+        sliceCanvas.getContext('2d').drawImage(canvas, 0, srcY, canvas.width, srcH, 0, 0, canvas.width, srcH);
+
+        pdf.addImage(sliceCanvas.toDataURL('image/jpeg', 0.92), 'JPEG', margin, margin, contentW, sliceH);
+        remaining -= sliceH;
+        if (remaining > 0) { pdf.addPage(); }
+      }
+
+      const investorName = document.getElementById('doc-meta').textContent.match(/Investor:\s*([^|]+)/)?.[1]?.trim() || 'questionnaire';
+      pdf.save(`investor-questionnaire-${investorName.replace(/\s+/g, '-')}.pdf`);
+    } catch (e) {
+      console.error(e);
+      alert('PDF generation failed. Try using Ctrl/Cmd+P to print as PDF instead.');
+    }
+
+    btn.disabled = false;
+    btn.textContent = 'Download PDF';
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Firm Settings</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site-header">
+  <div class="site-header-inner">
+    <a href="/dashboard.html" class="site-back">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 2L4 7l5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Dashboard
+    </a>
+    <nav class="site-nav">
+      <span id="user-name" style="font-size:13px;color:var(--text-muted);"></span>
+      <button id="logout-btn">Sign out</button>
+    </nav>
+  </div>
+</header>
+
+<div class="page-wide">
+  <div style="margin-bottom:32px;">
+    <h1>Firm Settings</h1>
+    <p>Manage your firm's profile and team members.</p>
+  </div>
+
+  <div id="alert-global" style="display:none;" class="alert"></div>
+
+  <!-- Firm name -->
+  <div class="card" style="margin-bottom:24px;">
+    <h3 style="margin-bottom:16px;">Firm Profile</h3>
+    <div class="field" style="max-width:400px;margin-bottom:16px;">
+      <label class="label" for="firm-name">Firm Name</label>
+      <input type="text" id="firm-name" placeholder="Your firm name">
+    </div>
+    <button class="btn btn-primary" id="save-firm-btn">Save</button>
+  </div>
+
+  <!-- Team members -->
+  <div class="card" style="margin-bottom:24px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+      <h3 style="margin-bottom:0;">Team Members</h3>
+      <button class="btn btn-outline" id="show-add-user-btn">+ Add User</button>
+    </div>
+
+    <!-- Add user form (hidden by default) -->
+    <div id="add-user-form" style="display:none;border:1px solid var(--border);border-radius:5px;padding:24px;margin-bottom:20px;background:var(--bg);">
+      <h3 style="margin-bottom:16px;">Add Team Member</h3>
+      <div id="add-user-alert" style="display:none;" class="alert"></div>
+      <div class="field-row">
+        <div class="field">
+          <label class="label" for="nu-name">Full Name</label>
+          <input type="text" id="nu-name" placeholder="Jane Smith">
+        </div>
+        <div class="field">
+          <label class="label" for="nu-email">Email</label>
+          <input type="email" id="nu-email" placeholder="jane@firm.com">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label class="label" for="nu-password">Temporary Password</label>
+          <input type="text" id="nu-password" placeholder="Set a password for them">
+        </div>
+        <div class="field">
+          <label class="label" for="nu-role">Role</label>
+          <select id="nu-role">
+            <option value="user">User</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="add-user-btn">Add Member</button>
+        <button class="btn btn-ghost" id="cancel-add-user-btn">Cancel</button>
+      </div>
+    </div>
+
+    <div id="users-list"></div>
+  </div>
+</div>
+
+<script>
+  let currentUser = null;
+
+  async function init() {
+    const meRes = await fetch('/api/me');
+    if (!meRes.ok) { location.href = '/'; return; }
+    currentUser = await meRes.json();
+    document.getElementById('user-name').textContent = currentUser.full_name;
+
+    if (currentUser.role !== 'admin') {
+      document.querySelector('.page-wide').innerHTML = '<div class="alert alert-error">Admin access required.</div>';
+      return;
+    }
+
+    const [firmRes, usersRes] = await Promise.all([fetch('/api/firm'), fetch('/api/firm/users')]);
+    const firm = await firmRes.json();
+    const users = await usersRes.json();
+
+    document.getElementById('firm-name').value = firm.name;
+    renderUsers(users);
+  }
+
+  function renderUsers(users) {
+    const el = document.getElementById('users-list');
+    if (!users.length) { el.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">No team members yet.</p>'; return; }
+    el.innerHTML = `
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border);">
+            <th style="text-align:left;padding:8px 0;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);">Name</th>
+            <th style="text-align:left;padding:8px 0;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);">Email</th>
+            <th style="text-align:left;padding:8px 0;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);">Role</th>
+            <th style="text-align:left;padding:8px 0;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);">Joined</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${users.map(u => `
+            <tr style="border-bottom:1px solid var(--border);" data-id="${u.id}">
+              <td style="padding:12px 0;font-size:13px;font-weight:500;">${esc(u.full_name)}${u.id === currentUser.id ? ' <span style="font-size:11px;color:var(--text-muted);">(you)</span>' : ''}</td>
+              <td style="padding:12px 0;font-size:13px;color:var(--text-muted);">${esc(u.email)}</td>
+              <td style="padding:12px 0;">
+                <select class="role-select" data-id="${u.id}" style="font-size:12px;padding:4px 8px;width:auto;" ${u.id === currentUser.id ? 'disabled' : ''}>
+                  <option value="user" ${u.role==='user'?'selected':''}>User</option>
+                  <option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>
+                </select>
+              </td>
+              <td style="padding:12px 0;font-size:12px;color:var(--text-muted);">${new Date(u.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</td>
+              <td style="padding:12px 0;text-align:right;">
+                ${u.id !== currentUser.id ? `<button class="btn btn-ghost remove-btn" data-id="${u.id}" style="font-size:12px;color:var(--error);">Remove</button>` : ''}
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+
+    el.querySelectorAll('.role-select').forEach(sel => {
+      sel.addEventListener('change', async () => {
+        const res = await fetch(`/api/firm/users/${sel.dataset.id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ role: sel.value }) });
+        if (!res.ok) { alert('Failed to update role'); sel.value = sel.value === 'admin' ? 'user' : 'admin'; }
+        else showGlobal('Role updated.', 'success');
+      });
+    });
+
+    el.querySelectorAll('.remove-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Remove this user from the firm?')) return;
+        const res = await fetch(`/api/firm/users/${btn.dataset.id}`, { method:'DELETE' });
+        if (res.ok) { btn.closest('tr').remove(); showGlobal('User removed.', 'success'); }
+        else { const d=await res.json(); showGlobal(d.error,'error'); }
+      });
+    });
+  }
+
+  document.getElementById('save-firm-btn').addEventListener('click', async () => {
+    const name = document.getElementById('firm-name').value.trim();
+    if (!name) return;
+    const res = await fetch('/api/firm', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name }) });
+    if (res.ok) showGlobal('Firm name saved.', 'success');
+    else showGlobal('Failed to save.', 'error');
+  });
+
+  document.getElementById('show-add-user-btn').addEventListener('click', () => {
+    document.getElementById('add-user-form').style.display = 'block';
+    document.getElementById('show-add-user-btn').style.display = 'none';
+  });
+  document.getElementById('cancel-add-user-btn').addEventListener('click', () => {
+    document.getElementById('add-user-form').style.display = 'none';
+    document.getElementById('show-add-user-btn').style.display = '';
+  });
+
+  document.getElementById('add-user-btn').addEventListener('click', async () => {
+    const name = document.getElementById('nu-name').value.trim();
+    const email = document.getElementById('nu-email').value.trim();
+    const password = document.getElementById('nu-password').value.trim();
+    const role = document.getElementById('nu-role').value;
+    if (!name || !email || !password) { showAddAlert('All fields required.'); return; }
+
+    const res = await fetch('/api/firm/users', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ full_name: name, email, password, role }) });
+    const data = await res.json();
+    if (!res.ok) { showAddAlert(data.error); return; }
+
+    document.getElementById('add-user-form').style.display = 'none';
+    document.getElementById('show-add-user-btn').style.display = '';
+    ['nu-name','nu-email','nu-password'].forEach(id => document.getElementById(id).value = '');
+
+    const usersRes = await fetch('/api/firm/users');
+    renderUsers(await usersRes.json());
+    showGlobal(`${name} added to the firm.`, 'success');
+  });
+
+  function showGlobal(msg, type) {
+    const el = document.getElementById('alert-global');
+    el.className = `alert alert-${type}`; el.textContent = msg; el.style.display = 'block';
+    setTimeout(() => el.style.display = 'none', 3000);
+  }
+  function showAddAlert(msg) {
+    const el = document.getElementById('add-user-alert');
+    el.className = 'alert alert-error'; el.textContent = msg; el.style.display = 'block';
+  }
+  function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  document.getElementById('logout-btn').addEventListener('click', async () => {
+    await fetch('/api/logout', { method:'POST' });
+    location.href = '/';
+  });
+
+  init();
+</script>
+</body>
+</html>

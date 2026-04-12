@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Acknowledgment & Signature</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .sig-tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+    .sig-tab { padding: 10px 20px; font-size: 13px; font-weight: 500; cursor: pointer; border: none; background: none; font-family: var(--font); color: var(--text-muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+    .sig-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .sig-panel { display: none; }
+    .sig-panel.active { display: block; }
+    .typed-preview { font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-size: 36px; color: var(--text); padding: 16px 0 8px; border-bottom: 2px solid var(--text); min-height: 60px; line-height: 1.2; word-break: break-word; }
+    .typed-preview.empty { color: var(--text-muted); font-size: 22px; padding-top: 24px; }
+    .canvas-wrap { position: relative; border: 1px solid var(--border); background: #fff; touch-action: none; }
+    canvas { display: block; cursor: crosshair; width: 100%; height: 200px; }
+    .canvas-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
+    .canvas-hint { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+    .summary-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .summary-row:last-child { border-bottom: none; }
+    .summary-label { color: var(--text-muted); }
+    .summary-value { font-weight: 500; text-align: right; max-width: 60%; }
+    .ack-text { font-size: 12px; line-height: 1.8; color: var(--text-muted); }
+  </style>
+</head>
+<body>
+<header class="site-header">
+  <div class="site-header-inner">
+    <a id="back-link" href="/dashboard.html" class="site-back">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 2L4 7l5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Back
+    </a>
+    <nav class="site-nav">
+      <span id="user-name" style="font-size:13px;color:var(--text-muted);"></span>
+    </nav>
+  </div>
+</header>
+
+<div class="page">
+  <div class="step-header">
+    <p class="step-tag">Final Step</p>
+    <h1>Acknowledgment &amp; Signature</h1>
+  </div>
+
+  <div id="alert-banner" style="display:none;" class="alert alert-error"></div>
+
+  <!-- Summary -->
+  <div class="card" style="margin-bottom:16px;">
+    <h3 style="margin-bottom:16px;">Submission Summary</h3>
+    <div id="summary"></div>
+  </div>
+
+  <!-- Acknowledgment -->
+  <div class="card" style="margin-bottom:16px;">
+    <h3 style="margin-bottom:12px;">Acknowledgment</h3>
+    <p class="ack-text">INVESTOR IS AWARE AND UNDERSTANDS THAT THE INFORMATION PROVIDED IN THIS QUESTIONNAIRE WILL BE RELIED UPON BY THE COMPANY AND ITS REPRESENTATIVES IN DETERMINING INVESTOR'S STATUS AS AN ACCREDITED INVESTOR, QUALIFIED CLIENT AND WHETHER INVESTOR OTHERWISE MEETS THE SUITABILITY REQUIREMENTS NECESSARY FOR THE PURCHASE AND OWNERSHIP OF THE SECURITIES IN THE COMPANY. INVESTOR THEREFORE REPRESENTS AND WARRANTS THAT, TO THE BEST OF INVESTOR'S KNOWLEDGE AND BELIEF, THE ABOVE INFORMATION SUPPLIED BY INVESTOR IS TRUE AND CORRECT IN ALL RESPECTS AS OF THE DATE HEREOF. BY SIGNING BELOW, INVESTOR CERTIFIES THAT AT LEAST ONE OF THE REPRESENTATIONS MARKED "YES" IN CATEGORY I ABOVE IS TRUE AND CORRECT AS OF THE DATE HEREOF. INVESTOR UNDERTAKES THE OBLIGATION TO NOTIFY THE COMPANY OF ANY MATERIAL CHANGE IN THE INFORMATION PRESENTED HEREIN. INVESTOR SHALL INDEMNIFY AND HOLD HARMLESS THE COMPANY AND ITS REPRESENTATIVES FROM ANY MISTAKE, INACCURACY OR MISREPRESENTATION IN THIS QUESTIONNAIRE.</p>
+  </div>
+
+  <!-- Signature -->
+  <div class="card">
+    <h3 style="margin-bottom:16px;">Signature</h3>
+
+    <div class="field" style="margin-bottom:20px;">
+      <label class="label" for="sig-name">Print Full Legal Name</label>
+      <input type="text" id="sig-name" placeholder="Full legal name" autocomplete="off">
+    </div>
+
+    <div class="field" id="sig-title-wrap" style="display:none;margin-bottom:20px;">
+      <label class="label" for="sig-title">Title (if signing on behalf of an entity)</label>
+      <input type="text" id="sig-title" placeholder="e.g. Managing Member">
+    </div>
+
+    <div class="field" style="margin-bottom:24px;">
+      <label class="label">Date</label>
+      <input type="text" id="sig-date" readonly style="background:#f5f5f5;color:var(--text-muted);width:200px;">
+    </div>
+
+    <div class="sig-tabs">
+      <button class="sig-tab active" data-tab="type">Type</button>
+      <button class="sig-tab" data-tab="draw">Draw</button>
+    </div>
+
+    <div class="sig-panel active" id="panel-type">
+      <div class="field">
+        <label class="label">Your signature will appear as:</label>
+        <div class="typed-preview empty" id="typed-preview">Enter your name above</div>
+      </div>
+    </div>
+
+    <div class="sig-panel" id="panel-draw">
+      <div class="field">
+        <label class="label">Sign in the box below</label>
+        <div class="canvas-wrap">
+          <canvas id="sig-canvas" width="900" height="200"></canvas>
+        </div>
+        <div class="canvas-actions">
+          <button class="btn btn-ghost" id="clear-btn" style="font-size:12px;padding:4px 12px;">Clear</button>
+        </div>
+        <p class="canvas-hint">Use your mouse, stylus, or finger to draw your signature.</p>
+      </div>
+    </div>
+
+    <div class="btn-row" style="margin-top:32px;">
+      <button class="btn btn-primary" id="submit-btn">Submit &amp; Sign</button>
+      <a id="edit-link" href="#" class="btn btn-outline">← Edit Responses</a>
+    </div>
+    <p style="font-size:11px;color:var(--text-muted);margin-top:12px;">By clicking "Submit &amp; Sign" you certify that all information is true and correct to the best of your knowledge.</p>
+  </div>
+</div>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  const SUB_ID = params.get('id');
+  if (!SUB_ID) location.href = '/dashboard.html';
+
+  document.getElementById('back-link').href = `/questionnaire.html?id=${SUB_ID}`;
+  document.getElementById('edit-link').href = `/questionnaire.html?id=${SUB_ID}`;
+  document.getElementById('sig-date').value = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+  async function loadSubmission() {
+    const res = await fetch(`/api/submissions/${SUB_ID}`);
+    if (!res.ok) { location.href = '/dashboard.html'; return; }
+    const data = await res.json();
+
+    const gi = data.general_info ? JSON.parse(data.general_info) : {};
+    const ii = data.investment_info ? JSON.parse(data.investment_info) : {};
+
+    // Summary
+    let accStatus = '—';
+    if (gi.investor_type === 'individual' || !gi.ownership_type || gi.ownership_type === 'individual' || gi.ownership_type === 'ira') {
+      const qualifies = ['i1a','i1b','i1c','i1d','i1e','i1f'].some(k => ii[k] === 'yes');
+      accStatus = qualifies ? 'Appears to qualify (natural person)' : 'Does not appear to qualify';
+    } else {
+      const qualifies = ['i2i','i2ii','i2iii','i2iv','i2v','i2vi','i2vii','i2viii','i2ix','i2x','i2xi','i2xii'].some(k => ii[k] === 'yes');
+      accStatus = qualifies ? 'Appears to qualify (entity)' : 'Does not appear to qualify';
+    }
+
+    const rows = [
+      ['Investor', data.investor_name || '—'],
+      ['Legal Name', gi.legal_name || '—'],
+      ['Email', gi.email || '—'],
+      ['Ownership Type', gi.ownership_type ? gi.ownership_type.charAt(0).toUpperCase() + gi.ownership_type.slice(1) : '—'],
+      ['Accredited Investor Status', accStatus],
+    ];
+    document.getElementById('summary').innerHTML = rows.map(([label, val]) =>
+      `<div class="summary-row"><span class="summary-label">${label}</span><span class="summary-value">${val}</span></div>`
+    ).join('');
+
+    // Check if this is a re-sign after firm edits
+    if (data.invitation_id) {
+      const invRes = await fetch(`/api/submissions/${SUB_ID}`);
+      // We get inv status via the submission endpoint which now includes it via matter.html logic
+    }
+
+    // Show re-sign notice if firm made edits
+    if (data.signature_name && !data.signed_at) {
+      // Previously signed but now back to draft = revised
+      const banner = document.getElementById('alert-banner');
+      banner.className = 'alert alert-info';
+      banner.textContent = 'This questionnaire has been updated. Please review your responses and sign below.';
+      banner.style.display = 'block';
+    }
+
+    // Pre-fill name if previously signed
+    if (data.signature_name) {
+      document.getElementById('sig-name').value = data.signature_name;
+      updateTypedPreview(data.signature_name);
+    }
+
+    // Show title field for entities
+    if (gi.ownership_type && !['individual','ira'].includes(gi.ownership_type)) {
+      document.getElementById('sig-title-wrap').style.display = 'block';
+    }
+  }
+
+  fetch('/api/me').then(r => r.json()).then(u => {
+    document.getElementById('user-name').textContent = u.full_name;
+  }).catch(() => location.href = '/');
+
+  // Tabs
+  let activeTab = 'type';
+  document.querySelectorAll('.sig-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      activeTab = tab.dataset.tab;
+      document.querySelectorAll('.sig-tab').forEach(t => t.classList.toggle('active', t === tab));
+      document.querySelectorAll('.sig-panel').forEach(p => p.classList.toggle('active', p.id === `panel-${activeTab}`));
+    });
+  });
+
+  // Typed signature
+  function updateTypedPreview(name) {
+    const el = document.getElementById('typed-preview');
+    if (name) { el.textContent = name; el.classList.remove('empty'); }
+    else { el.textContent = 'Enter your name above'; el.classList.add('empty'); }
+  }
+  document.getElementById('sig-name').addEventListener('input', e => updateTypedPreview(e.target.value));
+
+  // Draw signature
+  const canvas = document.getElementById('sig-canvas');
+  const ctx = canvas.getContext('2d');
+  let drawing = false;
+  let hasDrawing = false;
+
+  function getPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const src = e.touches ? e.touches[0] : e;
+    return { x: (src.clientX - rect.left) * scaleX, y: (src.clientY - rect.top) * scaleY };
+  }
+
+  ctx.strokeStyle = '#171717'; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+
+  function startDraw(e) { e.preventDefault(); drawing = true; const {x,y}=getPos(e); ctx.beginPath(); ctx.moveTo(x,y); }
+  function draw(e) { e.preventDefault(); if (!drawing) return; const {x,y}=getPos(e); ctx.lineTo(x,y); ctx.stroke(); hasDrawing=true; }
+  function stopDraw() { drawing = false; }
+
+  canvas.addEventListener('mousedown', startDraw);
+  canvas.addEventListener('mousemove', draw);
+  canvas.addEventListener('mouseup', stopDraw);
+  canvas.addEventListener('mouseleave', stopDraw);
+  canvas.addEventListener('touchstart', startDraw, { passive: false });
+  canvas.addEventListener('touchmove', draw, { passive: false });
+  canvas.addEventListener('touchend', stopDraw);
+  document.getElementById('clear-btn').addEventListener('click', () => { ctx.clearRect(0,0,canvas.width,canvas.height); hasDrawing=false; });
+
+  // Alert
+  function showAlert(msg, type='error') {
+    const el = document.getElementById('alert-banner');
+    el.className = `alert alert-${type}`; el.textContent = msg; el.style.display = 'block';
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  // Submit
+  document.getElementById('submit-btn').addEventListener('click', async () => {
+    const sigName = document.getElementById('sig-name').value.trim();
+    if (!sigName) { showAlert('Please enter your full legal name.'); return; }
+    if (activeTab === 'draw' && !hasDrawing) { showAlert('Please draw your signature or switch to the Type tab.'); return; }
+
+    const sigData = activeTab === 'draw' ? canvas.toDataURL('image/png') : sigName;
+
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true; btn.textContent = 'Submitting…';
+
+    const res = await fetch(`/api/submissions/${SUB_ID}/sign`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ signature_name: sigName, signature_data: sigData, signature_type: activeTab }),
+    });
+
+    if (res.ok) {
+      location.href = `/receipt.html?id=${SUB_ID}`;
+    } else {
+      const err = await res.json();
+      showAlert(err.error || 'Submission failed. Please try again.');
+      btn.disabled = false; btn.textContent = 'Submit & Sign';
+    }
+  });
+
+  loadSubmission();
+</script>
+</body>
+</html>

@@ -9,7 +9,10 @@
 <body>
 <header class="site-header">
   <div class="site-header-inner">
-    <a href="/dashboard.html" class="site-logo">← Dashboard</a>
+    <a href="/dashboard.html" class="site-back">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 2L4 7l5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Dashboard
+    </a>
     <nav class="site-nav">
       <span id="save-status" style="font-size:12px;color:var(--text-muted);"></span>
     </nav>
@@ -18,8 +21,8 @@
 
 <div class="page">
   <div class="step-header">
-    <p class="progress-label" id="progress-label">Step 1 of 8</p>
-    <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:12.5%"></div></div>
+    <p class="progress-label" id="progress-label">Step 1 of 7</p>
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:14.3%"></div></div>
     <p class="step-tag" id="step-tag">General Information</p>
     <h1 id="step-title">About the Investor</h1>
   </div>
@@ -92,12 +95,18 @@
           </div>
           <div class="field">
             <label class="label" for="gi-country-birth">Country of Birth</label>
-            <input type="text" id="gi-country-birth" placeholder="e.g. United States">
+            <div class="country-wrap">
+              <input type="text" id="gi-country-birth" placeholder="e.g. United States" autocomplete="off">
+              <ul class="country-dropdown" id="gi-country-birth-dd"></ul>
+            </div>
           </div>
         </div>
         <div class="field">
           <label class="label" for="gi-country-citizenship">Country of Citizenship</label>
-          <input type="text" id="gi-country-citizenship" placeholder="e.g. United States">
+          <div class="country-wrap">
+            <input type="text" id="gi-country-citizenship" placeholder="e.g. United States" autocomplete="off">
+            <ul class="country-dropdown" id="gi-country-citizenship-dd"></ul>
+          </div>
         </div>
       </div>
 
@@ -148,7 +157,10 @@
         </div>
         <div class="field">
           <label class="label" for="gi-country">Country</label>
-          <input type="text" id="gi-country" value="United States">
+          <div class="country-wrap">
+            <input type="text" id="gi-country" value="United States" autocomplete="off">
+            <ul class="country-dropdown" id="gi-country-dd"></ul>
+          </div>
         </div>
       </div>
     </div>
@@ -573,46 +585,9 @@
       </div>
     </div>
     <div class="btn-row">
-      <button class="btn btn-primary" onclick="nextStep()">Continue →</button>
+      <button class="btn btn-primary" id="sign-btn">Proceed to Signature →</button>
       <button class="btn btn-ghost" onclick="prevStep()">← Back</button>
     </div>
-  </div>
-
-  <!-- ── STEP 8: Review & Sign ── -->
-  <div id="step-8" class="step-content" style="display:none;">
-    <div class="card">
-      <h3>Acknowledgment</h3>
-      <p style="margin-bottom:20px;font-size:12px;line-height:1.7;color:var(--text-muted);">
-        INVESTOR IS AWARE AND UNDERSTANDS THAT THE INFORMATION PROVIDED IN THIS QUESTIONNAIRE WILL BE RELIED UPON BY THE COMPANY AND ITS REPRESENTATIVES IN DETERMINING INVESTOR'S STATUS AS AN ACCREDITED INVESTOR, QUALIFIED CLIENT AND WHETHER INVESTOR OTHERWISE MEETS THE SUITABILITY REQUIREMENTS NECESSARY FOR THE PURCHASE AND OWNERSHIP OF THE SECURITIES IN THE COMPANY. INVESTOR THEREFORE REPRESENTS AND WARRANTS THAT, TO THE BEST OF INVESTOR'S KNOWLEDGE AND BELIEF, THE ABOVE INFORMATION SUPPLIED BY INVESTOR IS TRUE AND CORRECT IN ALL RESPECTS AS OF THE DATE HEREOF. BY SIGNING BELOW, INVESTOR CERTIFIES THAT AT LEAST ONE OF THE REPRESENTATIONS MARKED "YES" IN CATEGORY I ABOVE IS TRUE AND CORRECT AS OF THE DATE HEREOF. INVESTOR UNDERTAKES THE OBLIGATION TO NOTIFY THE COMPANY OF ANY MATERIAL CHANGE IN THE INFORMATION PRESENTED HEREIN. INVESTOR SHALL INDEMNIFY AND HOLD HARMLESS THE COMPANY AND ITS REPRESENTATIVES FROM ANY MISTAKE, INACCURACY OR MISREPRESENTATION IN THIS QUESTIONNAIRE.
-      </p>
-
-      <div id="summary-panel" style="margin-bottom:24px;"></div>
-
-      <div class="sig-block" id="sig-block">
-        <h3>Signature</h3>
-        <div class="field" style="margin-bottom:12px;">
-          <label class="label" for="sig-name">Print Name of Investor (or Signatory)</label>
-          <input type="text" id="sig-name" placeholder="Full legal name">
-        </div>
-        <div class="field" id="sig-title-field" style="display:none;">
-          <label class="label" for="sig-title">Title (if Investor is a legal entity)</label>
-          <input type="text" id="sig-title" placeholder="e.g. Managing Member">
-        </div>
-        <div class="field">
-          <label class="label">Date</label>
-          <input type="text" id="sig-date" readonly style="background:#f5f5f5;color:var(--text-muted);width:160px;">
-        </div>
-        <div style="margin-top:16px;">
-          <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">Signature (type name to sign)</p>
-          <div class="sig-name" id="sig-preview">—</div>
-        </div>
-      </div>
-    </div>
-    <div class="btn-row">
-      <button class="btn btn-primary" id="submit-btn">Submit questionnaire</button>
-      <button class="btn btn-ghost" onclick="prevStep()">← Back</button>
-    </div>
-    <p style="font-size:11px;color:var(--text-muted);margin-top:12px;">By clicking "Submit," you certify that all information provided is true and correct to the best of your knowledge.</p>
   </div>
 </div>
 
@@ -622,9 +597,11 @@
   if (!SUB_ID) window.location.href = '/dashboard.html';
 
   let currentStep = 1;
-  const TOTAL_STEPS = 8;
-  let investorType = 'individual'; // 'individual' or 'entity'
+  const TOTAL_STEPS = 7;
+  let investorType = 'individual';
   let subData = {};
+  const IS_GUEST = params.get('guest') === '1';
+  let firmEditMode = false; // true when a firm user is editing a previously signed questionnaire
 
   const steps = {
     1: { tag: 'General Information', title: 'About the Investor' },
@@ -634,7 +611,6 @@
     5: { tag: 'Category III', title: 'Bad Actor Representations' },
     6: { tag: 'Category IV', title: 'Investment Company Act' },
     7: { tag: 'Category V', title: 'Qualified Client Certification' },
-    8: { tag: 'Review & Sign', title: 'Acknowledgment & Signature' },
   };
 
   // ── Radio group helpers ──
@@ -696,11 +672,6 @@
     });
   });
 
-  // Signature preview
-  document.getElementById('sig-name').addEventListener('input', e => {
-    document.getElementById('sig-preview').textContent = e.target.value || '—';
-  });
-  document.getElementById('sig-date').value = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
   // ── Navigation ──
   function showStep(n) {
@@ -711,7 +682,6 @@
     document.getElementById('step-tag').textContent = steps[n].tag;
     document.getElementById('step-title').textContent = steps[n].title;
     if (n === 2) updateAMLFields();
-    if (n === 8) buildSummary();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -839,43 +809,29 @@
     `;
   }
 
-  // ── Submit ──
-  document.getElementById('submit-btn').addEventListener('click', async () => {
-    const sigName = v('sig-name');
-    if (!sigName) { showAlert('Please enter your name to sign.'); return; }
-
-    const btn = document.getElementById('submit-btn');
-    btn.disabled = true; btn.textContent = 'Submitting…';
-
-    try {
-      await fetch(`/api/submissions/${SUB_ID}`, {
-        method: 'PUT', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({
-          general_info: collectGeneralInfo(),
-          investment_info: collectInvestmentInfo(),
-          category_ii: collectCategoryII(),
-          category_iii: collectCategoryIII(),
-          category_iv: collectCategoryIV(),
-          category_v: collectCategoryV(),
-          signature_name: sigName,
-          status: 'submitted',
-        })
-      });
-      document.querySelectorAll('.step-content').forEach(el => el.style.display='none');
-      document.getElementById('progress-fill').style.width = '100%';
-      document.getElementById('step-tag').textContent = 'Complete';
-      document.getElementById('step-title').textContent = 'Questionnaire Submitted';
-      document.querySelector('.step-header').insertAdjacentHTML('afterend', `
-        <div class="card">
-          <div class="alert alert-success" style="margin-bottom:0;">
-            Your investor questionnaire has been submitted successfully. The company will review your responses and may follow up for additional documentation.
-          </div>
-          <div class="btn-row" style="margin-top:20px;">
-            <a href="/dashboard.html" class="btn btn-outline">← Return to Dashboard</a>
-          </div>
-        </div>
-      `);
-    } catch { showAlert('Submission failed. Please try again.'); btn.disabled=false; btn.textContent='Submit questionnaire'; }
+  // ── Sign button ──
+  document.getElementById('sign-btn').addEventListener('click', async () => {
+    await autosave();
+    if (firmEditMode) {
+      // Send re-sign request to investor
+      const btn = document.getElementById('sign-btn');
+      btn.disabled = true; btn.textContent = 'Sending…';
+      const res = await fetch(`/api/submissions/${SUB_ID}/request-resign`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        btn.textContent = 'Re-signature Requested ✓';
+        const banner = document.getElementById('alert-banner');
+        banner.className = 'alert alert-success';
+        banner.innerHTML = `Re-signature request sent to the investor. ${data.link ? `<br>Link: <a href="${data.link}" style="color:inherit;">${data.link}</a>` : ''}`;
+        banner.style.display = 'block';
+        firmEditMode = false;
+      } else {
+        btn.disabled = false; btn.textContent = 'Save & Request Re-signature';
+        showAlert(data.error || 'Failed to send request.');
+      }
+    } else {
+      location.href = `/signature.html?id=${SUB_ID}`;
+    }
   });
 
   function showAlert(msg) {
@@ -892,10 +848,22 @@
     subData = data;
 
     if (data.status === 'submitted') {
-      // Read-only view hint
-      document.getElementById('alert-banner').className = 'alert alert-info';
-      document.getElementById('alert-banner').textContent = 'This questionnaire has been submitted and is read-only.';
-      document.getElementById('alert-banner').style.display = 'block';
+      if (!IS_GUEST) {
+        // Firm user editing a signed questionnaire
+        firmEditMode = true;
+        const banner = document.getElementById('alert-banner');
+        banner.className = 'alert alert-info';
+        banner.innerHTML = '<strong>Edit Mode</strong> — This questionnaire is signed. Any edits will reset it to draft and require the investor to re-sign.';
+        banner.style.display = 'block';
+        const signBtn = document.getElementById('sign-btn');
+        signBtn.textContent = 'Save & Request Re-signature';
+        signBtn.style.background = '#854d0e';
+        signBtn.style.borderColor = '#854d0e';
+      } else {
+        document.getElementById('alert-banner').className = 'alert alert-info';
+        document.getElementById('alert-banner').textContent = 'This questionnaire has been submitted and is read-only.';
+        document.getElementById('alert-banner').style.display = 'block';
+      }
     }
 
     if (data.general_info) populateGeneralInfo(JSON.parse(data.general_info));
@@ -904,7 +872,6 @@
     if (data.category_iii) populateCategoryIII(JSON.parse(data.category_iii));
     if (data.category_iv) populateCategoryIV(JSON.parse(data.category_iv));
     if (data.category_v) populateCategoryV(JSON.parse(data.category_v));
-    if (data.signature_name) document.getElementById('sig-name').value = data.signature_name;
   }
 
   function setRadio(name, value) {
@@ -927,7 +894,7 @@
     setVal('gi-ownership-other', d.ownership_other);
     setVal('gi-state-org', d.state_org); setVal('gi-country-org', d.country_org);
     setVal('gi-date-formation', d.date_formation); setVal('gi-contact-person', d.contact_person);
-    setVal('gi-dob', d.dob); setVal('gi-country-birth', d.country_birth); setVal('gi-country-citizenship', d.country_citizenship);
+    setVal('gi-dob', d.dob); setVal('gi-country-birth', d.country_birth || 'United States'); setVal('gi-country-citizenship', d.country_citizenship || 'United States');
     setVal('gi-ira-trustee', d.ira_trustee); setVal('gi-ira-ein', d.ira_ein);
     setVal('gi-email', d.email); setVal('gi-phone', d.phone);
     setVal('gi-street', d.street); setVal('gi-city', d.city); setVal('gi-state', d.state); setVal('gi-zip', d.zip); setVal('gi-country', d.country);
@@ -959,6 +926,47 @@
 
   showStep(1);
   loadSubmission();
+
+  // ── Country autocomplete ──
+  const COUNTRIES = ["Afghanistan","Albania","Algeria","Andorra","Angola","Antigua and Barbuda","Argentina","Armenia","Australia","Austria","Azerbaijan","Bahamas","Bahrain","Bangladesh","Barbados","Belarus","Belgium","Belize","Benin","Bhutan","Bolivia","Bosnia and Herzegovina","Botswana","Brazil","Brunei","Bulgaria","Burkina Faso","Burundi","Cabo Verde","Cambodia","Cameroon","Canada","Central African Republic","Chad","Chile","China","Colombia","Comoros","Congo (Republic of the)","Congo (Democratic Republic of the)","Costa Rica","Croatia","Cuba","Cyprus","Czech Republic","Denmark","Djibouti","Dominica","Dominican Republic","Ecuador","Egypt","El Salvador","Equatorial Guinea","Eritrea","Estonia","Eswatini","Ethiopia","Fiji","Finland","France","Gabon","Gambia","Georgia","Germany","Ghana","Greece","Grenada","Guatemala","Guinea","Guinea-Bissau","Guyana","Haiti","Honduras","Hungary","Iceland","India","Indonesia","Iran","Iraq","Ireland","Israel","Italy","Jamaica","Japan","Jordan","Kazakhstan","Kenya","Kiribati","Kuwait","Kyrgyzstan","Laos","Latvia","Lebanon","Lesotho","Liberia","Libya","Liechtenstein","Lithuania","Luxembourg","Madagascar","Malawi","Malaysia","Maldives","Mali","Malta","Marshall Islands","Mauritania","Mauritius","Mexico","Micronesia","Moldova","Monaco","Mongolia","Montenegro","Morocco","Mozambique","Myanmar","Namibia","Nauru","Nepal","Netherlands","New Zealand","Nicaragua","Niger","Nigeria","North Korea","North Macedonia","Norway","Oman","Pakistan","Palau","Palestine","Panama","Papua New Guinea","Paraguay","Peru","Philippines","Poland","Portugal","Qatar","Romania","Russia","Rwanda","Saint Kitts and Nevis","Saint Lucia","Saint Vincent and the Grenadines","Samoa","San Marino","Sao Tome and Principe","Saudi Arabia","Senegal","Serbia","Seychelles","Sierra Leone","Singapore","Slovakia","Slovenia","Solomon Islands","Somalia","South Africa","South Korea","South Sudan","Spain","Sri Lanka","Sudan","Suriname","Sweden","Switzerland","Syria","Taiwan","Tajikistan","Tanzania","Thailand","Timor-Leste","Togo","Tonga","Trinidad and Tobago","Tunisia","Turkey","Turkmenistan","Tuvalu","Uganda","Ukraine","United Arab Emirates","United Kingdom","United States","Uruguay","Uzbekistan","Vanuatu","Vatican City","Venezuela","Vietnam","Yemen","Zambia","Zimbabwe"];
+
+  function initCountryAutocomplete(inputId, ddId) {
+    const input = document.getElementById(inputId);
+    const dd = document.getElementById(ddId);
+    if (!input || !dd) return;
+    let activeIdx = -1;
+
+    function renderDropdown(query) {
+      const q = (query || '').toLowerCase();
+      const matches = q ? COUNTRIES.filter(c => c.toLowerCase().includes(q)) : COUNTRIES;
+      dd.innerHTML = '';
+      activeIdx = -1;
+      matches.forEach(c => {
+        const li = document.createElement('li');
+        li.textContent = c;
+        li.addEventListener('mousedown', e => { e.preventDefault(); input.value = c; dd.classList.remove('open'); });
+        dd.appendChild(li);
+      });
+      dd.classList.toggle('open', matches.length > 0);
+    }
+
+    input.addEventListener('input', () => renderDropdown(input.value));
+    input.addEventListener('focus', () => renderDropdown(input.value));
+    input.addEventListener('click', () => renderDropdown(input.value));
+    input.addEventListener('blur', () => setTimeout(() => dd.classList.remove('open'), 150));
+    input.addEventListener('keydown', e => {
+      const items = dd.querySelectorAll('li');
+      if (!items.length) return;
+      if (e.key === 'ArrowDown') { e.preventDefault(); activeIdx = Math.min(activeIdx + 1, items.length - 1); items.forEach((li, i) => li.classList.toggle('active', i === activeIdx)); items[activeIdx]?.scrollIntoView({ block: 'nearest' }); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); activeIdx = Math.max(activeIdx - 1, 0); items.forEach((li, i) => li.classList.toggle('active', i === activeIdx)); items[activeIdx]?.scrollIntoView({ block: 'nearest' }); }
+      else if (e.key === 'Enter' && activeIdx >= 0) { e.preventDefault(); input.value = items[activeIdx].textContent; dd.classList.remove('open'); }
+      else if (e.key === 'Escape') { dd.classList.remove('open'); }
+    });
+  }
+
+  initCountryAutocomplete('gi-country-birth', 'gi-country-birth-dd');
+  initCountryAutocomplete('gi-country-citizenship', 'gi-country-citizenship-dd');
+  initCountryAutocomplete('gi-country', 'gi-country-dd');
 </script>
 </body>
 </html>
