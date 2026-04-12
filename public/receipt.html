@@ -79,7 +79,7 @@
       body { font-size: 11px; }
       .doc-header h1 { font-size: 16px; }
       .section { margin-bottom: 20px; page-break-inside: avoid; }
-      .sig-section { page-break-inside: avoid; }
+      #doc-sig { page-break-before: always; page-break-inside: avoid; }
       .qa-row { padding: 5px 0; }
       @page { margin: 18mm 16mm; }
     }
@@ -96,37 +96,39 @@
 <div class="doc" id="doc">
   <div id="doc-content" style="display:none;">
 
-    <div class="doc-header">
-      <h1>Accredited Investor Questionnaire</h1>
-      <div class="meta" id="doc-meta"></div>
+    <div id="doc-main">
+      <div class="doc-header">
+        <h1>Accredited Investor Questionnaire</h1>
+        <div class="meta" id="doc-meta"></div>
+      </div>
+
+      <!-- General Information -->
+      <div class="section" id="sec-general"></div>
+
+      <!-- AML / Source of Funds -->
+      <div class="section" id="sec-aml"></div>
+
+      <!-- Item 1 / Accredited Investor -->
+      <div class="section" id="sec-item1"></div>
+
+      <!-- Item 2 / Bad Actor -->
+      <div class="section" id="sec-item2"></div>
+
+      <!-- Category II -->
+      <div class="section" id="sec-cat2"></div>
+
+      <!-- Category III -->
+      <div class="section" id="sec-cat3"></div>
+
+      <!-- Category IV -->
+      <div class="section" id="sec-cat4"></div>
+
+      <!-- Category V -->
+      <div class="section" id="sec-cat5"></div>
     </div>
 
-    <!-- General Information -->
-    <div class="section" id="sec-general"></div>
-
-    <!-- AML / Source of Funds -->
-    <div class="section" id="sec-aml"></div>
-
-    <!-- Item 1 / Accredited Investor -->
-    <div class="section" id="sec-item1"></div>
-
-    <!-- Item 2 / Bad Actor -->
-    <div class="section" id="sec-item2"></div>
-
-    <!-- Category II -->
-    <div class="section" id="sec-cat2"></div>
-
-    <!-- Category III -->
-    <div class="section" id="sec-cat3"></div>
-
-    <!-- Category IV -->
-    <div class="section" id="sec-cat4"></div>
-
-    <!-- Category V -->
-    <div class="section" id="sec-cat5"></div>
-
-    <!-- Acknowledgment + Signature -->
-    <div class="sig-section">
+    <!-- Acknowledgment + Signature — separate page in PDF -->
+    <div id="doc-sig" class="sig-section">
       <p class="ack-text">INVESTOR IS AWARE AND UNDERSTANDS THAT THE INFORMATION PROVIDED IN THIS QUESTIONNAIRE WILL BE RELIED UPON BY THE COMPANY AND ITS REPRESENTATIVES IN DETERMINING INVESTOR'S STATUS AS AN ACCREDITED INVESTOR, QUALIFIED CLIENT AND WHETHER INVESTOR OTHERWISE MEETS THE SUITABILITY REQUIREMENTS NECESSARY FOR THE PURCHASE AND OWNERSHIP OF THE SECURITIES IN THE COMPANY. INVESTOR THEREFORE REPRESENTS AND WARRANTS THAT, TO THE BEST OF INVESTOR'S KNOWLEDGE AND BELIEF, THE ABOVE INFORMATION SUPPLIED BY INVESTOR IS TRUE AND CORRECT IN ALL RESPECTS AS OF THE DATE HEREOF. BY SIGNING BELOW, INVESTOR CERTIFIES THAT AT LEAST ONE OF THE REPRESENTATIONS MARKED "YES" IN CATEGORY I ABOVE IS TRUE AND CORRECT AS OF THE DATE HEREOF.</p>
       <div class="section-title">Signature</div>
       <div id="sec-sig"></div>
@@ -241,6 +243,13 @@
       item1HTML += qaRow('<strong>(d)</strong> Holds in good standing a Series 7, Series 65, or Series 82 FINRA license.', ii.i1d);
       item1HTML += qaRow('<strong>(e)</strong> Family client of a family office with AUM > $5,000,000, directed by a sophisticated person.', ii.i1e);
       item1HTML += qaRow('<strong>(f)</strong> Knowledgeable employee of the Company under Rule 3c-5(a)(4).', ii.i1f);
+      const accQualifies = ['i1a','i1b','i1c','i1d','i1e','i1f'].some(k => ii[k] === 'yes');
+      const accAnswered = ['i1a','i1b','i1c','i1d','i1e','i1f'].some(k => ii[k]);
+      if (accAnswered) {
+        item1HTML += `<div style="margin:12px 0;padding:8px 12px;border-radius:4px;font-size:12px;font-weight:600;background:${accQualifies?'#dcfce7':'#fee2e2'};color:${accQualifies?'#15803d':'#dc2626'};">
+          ${accQualifies ? '✓ Accredited Investor' : '✗ Does Not Qualify as Accredited Investor (no Item 1 category selected)'}
+        </div>`;
+      }
       item1HTML += `<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);"><p style="font-size:11px;color:var(--muted);margin-bottom:8px;">Suitability:</p>`;
       item1HTML += qaRow('Investment amount exceeds 10% of net worth or joint net worth.', ii.i1_suitability);
       item1HTML += `</div>`;
@@ -288,6 +297,14 @@
     cat3HTML += qaRow('<strong>(f)</strong> Has <strong>never</strong> been suspended or expelled from membership in, or barred from association with, a registered national securities exchange or affiliated securities association.', c3.c3f);
     cat3HTML += qaRow('<strong>(g)</strong> Has <strong>not</strong> been named in a registration statement that was the subject of a refusal order or stop order within the last 5 years, and is not currently under such investigation.', c3.c3g);
     cat3HTML += qaRow('<strong>(h)</strong> Is <strong>not</strong> subject to any USPS false representation order within the last 5 years.', c3.c3h);
+    const c3Keys = ['c3a','c3b','c3c','c3d','c3e','c3f','c3g','c3h'];
+    const c3Answered = c3Keys.some(k => c3[k]);
+    if (c3Answered) {
+      const isBadActor = c3Keys.some(k => c3[k] === 'not_correct');
+      cat3HTML += `<div style="margin-top:12px;padding:8px 12px;border-radius:4px;font-size:12px;font-weight:600;background:${isBadActor?'#fee2e2':'#dcfce7'};color:${isBadActor?'#dc2626':'#15803d'};">
+        ${isBadActor ? '✗ Bad Actor — one or more disqualifying responses' : '✓ Not a Bad Actor — all Category III representations correct'}
+      </div>`;
+    }
     document.getElementById('sec-cat3').innerHTML = cat3HTML;
 
     // ── Category IV ──
@@ -362,41 +379,39 @@
 
     try {
       const { jsPDF } = window.jspdf;
-      const doc = document.getElementById('doc');
-
-      const canvas = await html2canvas(doc, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff',
-      });
-
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       const pageW = pdf.internal.pageSize.getWidth();
       const pageH = pdf.internal.pageSize.getHeight();
       const margin = 10;
       const contentW = pageW - margin * 2;
-      const contentH = (canvas.height * contentW) / canvas.width;
 
-      const imgData = canvas.toDataURL('image/jpeg', 0.92);
-
-      let y = margin;
-      let remaining = contentH;
-
-      while (remaining > 0) {
-        const sliceH = Math.min(remaining, pageH - margin * 2);
-        const srcY = (contentH - remaining) * (canvas.height / contentH);
-        const srcH = sliceH * (canvas.height / contentH);
-
-        const sliceCanvas = document.createElement('canvas');
-        sliceCanvas.width = canvas.width;
-        sliceCanvas.height = srcH;
-        sliceCanvas.getContext('2d').drawImage(canvas, 0, srcY, canvas.width, srcH, 0, 0, canvas.width, srcH);
-
-        pdf.addImage(sliceCanvas.toDataURL('image/jpeg', 0.92), 'JPEG', margin, margin, contentW, sliceH);
-        remaining -= sliceH;
-        if (remaining > 0) { pdf.addPage(); }
+      function addCanvasPages(canvas, isFirst) {
+        const contentH = (canvas.height * contentW) / canvas.width;
+        let remaining = contentH;
+        while (remaining > 0) {
+          if (!isFirst) pdf.addPage();
+          isFirst = false;
+          const sliceH = Math.min(remaining, pageH - margin * 2);
+          const srcY = (contentH - remaining) * (canvas.height / contentH);
+          const srcH = sliceH * (canvas.height / contentH);
+          const slice = document.createElement('canvas');
+          slice.width = canvas.width;
+          slice.height = srcH;
+          slice.getContext('2d').drawImage(canvas, 0, srcY, canvas.width, srcH, 0, 0, canvas.width, srcH);
+          pdf.addImage(slice.toDataURL('image/jpeg', 0.92), 'JPEG', margin, margin, contentW, sliceH);
+          remaining -= sliceH;
+        }
       }
+
+      const opts = { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' };
+
+      // Render main content (all sections except sig)
+      const mainCanvas = await html2canvas(document.getElementById('doc-main'), opts);
+      addCanvasPages(mainCanvas, true);
+
+      // Always start a new page for acknowledgment + signature
+      const sigCanvas = await html2canvas(document.getElementById('doc-sig'), opts);
+      addCanvasPages(sigCanvas, false);
 
       const investorName = document.getElementById('doc-meta').textContent.match(/Investor:\s*([^|]+)/)?.[1]?.trim() || 'questionnaire';
       pdf.save(`investor-questionnaire-${investorName.replace(/\s+/g, '-')}.pdf`);

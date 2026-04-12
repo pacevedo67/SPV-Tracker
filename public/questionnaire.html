@@ -64,13 +64,16 @@
       <div class="section-block" id="entity-fields" style="display:none;">
         <h3>Entity Details</h3>
         <div class="field-row">
-          <div class="field">
+          <div class="field" id="gi-state-org-field" style="display:none;">
             <label class="label" for="gi-state-org">State of Organization</label>
-            <input type="text" id="gi-state-org" placeholder="e.g. Delaware">
+            <select id="gi-state-org"><option value="">— Select —</option></select>
           </div>
           <div class="field">
             <label class="label" for="gi-country-org">Country of Organization</label>
-            <input type="text" id="gi-country-org" placeholder="e.g. United States">
+            <div class="country-wrap">
+              <input type="text" id="gi-country-org" placeholder="e.g. United States" autocomplete="off">
+              <ul class="country-dropdown" id="gi-country-org-dd"></ul>
+            </div>
           </div>
         </div>
         <div class="field-row">
@@ -146,9 +149,9 @@
             <label class="label" for="gi-city">City</label>
             <input type="text" id="gi-city">
           </div>
-          <div class="field" style="flex:0 0 80px;">
+          <div class="field" id="gi-state-field" style="flex:0 0 180px;">
             <label class="label" for="gi-state">State</label>
-            <input type="text" id="gi-state" placeholder="TX">
+            <select id="gi-state"><option value="">— Select —</option></select>
           </div>
           <div class="field" style="flex:0 0 100px;">
             <label class="label" for="gi-zip">ZIP / Postal</label>
@@ -260,6 +263,8 @@
           <label><input type="radio" name="i1f" value="no"> No</label>
         </div>
       </div>
+
+      <div id="accredited-status" style="display:none;margin:16px 0 0;padding:10px 14px;border-radius:5px;font-size:13px;font-weight:600;"></div>
 
       <hr class="divider">
       <h3>Suitability Inquiry</h3>
@@ -872,6 +877,7 @@
     if (data.category_iii) populateCategoryIII(JSON.parse(data.category_iii));
     if (data.category_iv) populateCategoryIV(JSON.parse(data.category_iv));
     if (data.category_v) populateCategoryV(JSON.parse(data.category_v));
+    populateGeneralInfoPost();
   }
 
   function setRadio(name, value) {
@@ -917,6 +923,13 @@
   function populateCategoryIII(d) { ['c3a','c3b','c3c','c3d','c3e','c3f','c3g','c3h'].forEach(k => setRadio(k, d[k])); }
   function populateCategoryIV(d) { ['c4a','c4b','c4c','c4d'].forEach(k => setRadio(k, d[k])); setVal('c4b-owners', d.c4b_owners); }
   function populateCategoryV(d) { setRadio('qc-individual', d.qc_individual); setRadio('qc-entity', d.qc_entity); }
+
+  function populateGeneralInfoPost() {
+    // Re-run after data is loaded so visibility and badge reflect saved values
+    updateStateVisibility();
+    updateStateOrgVisibility();
+    updateAccreditedStatus();
+  }
 
   // Auto-save on blur from inputs
   let debounce;
@@ -967,6 +980,78 @@
   initCountryAutocomplete('gi-country-birth', 'gi-country-birth-dd');
   initCountryAutocomplete('gi-country-citizenship', 'gi-country-citizenship-dd');
   initCountryAutocomplete('gi-country', 'gi-country-dd');
+  initCountryAutocomplete('gi-country-org', 'gi-country-org-dd');
+
+  // ── US States ──
+  const US_STATES = [
+    'Alabama','Alaska','Arizona','Arkansas','California','Colorado','Connecticut',
+    'Delaware','District of Columbia','Florida','Georgia','Hawaii','Idaho','Illinois',
+    'Indiana','Iowa','Kansas','Kentucky','Louisiana','Maine','Maryland','Massachusetts',
+    'Michigan','Minnesota','Mississippi','Missouri','Montana','Nebraska','Nevada',
+    'New Hampshire','New Jersey','New Mexico','New York','North Carolina','North Dakota',
+    'Ohio','Oklahoma','Oregon','Pennsylvania','Rhode Island','South Carolina',
+    'South Dakota','Tennessee','Texas','Utah','Vermont','Virginia','Washington',
+    'West Virginia','Wisconsin','Wyoming',
+    'American Samoa','Guam','Northern Mariana Islands','Puerto Rico','U.S. Virgin Islands',
+  ];
+
+  function populateStateSelect(selId) {
+    const sel = document.getElementById(selId);
+    if (!sel) return;
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">— Select State —</option>' +
+      US_STATES.map(s => `<option value="${s}"${s===cur?' selected':''}>${s}</option>`).join('');
+  }
+  populateStateSelect('gi-state');
+  populateStateSelect('gi-state-org');
+
+  // ── Show state only for United States ──
+  function updateStateVisibility() {
+    const country = (document.getElementById('gi-country')?.value || '').trim();
+    const stateField = document.getElementById('gi-state-field');
+    if (!stateField) return;
+    const isUS = country.toLowerCase() === 'united states';
+    stateField.style.display = isUS ? '' : 'none';
+    if (!isUS) document.getElementById('gi-state').value = '';
+  }
+
+  function updateStateOrgVisibility() {
+    const country = (document.getElementById('gi-country-org')?.value || '').trim();
+    const stateField = document.getElementById('gi-state-org-field');
+    if (!stateField) return;
+    const isUS = country.toLowerCase() === 'united states';
+    stateField.style.display = isUS ? 'block' : 'none';
+    if (!isUS) document.getElementById('gi-state-org').value = '';
+  }
+
+  document.getElementById('gi-country').addEventListener('input', updateStateVisibility);
+  document.getElementById('gi-country').addEventListener('change', updateStateVisibility);
+  document.getElementById('gi-country-org').addEventListener('input', updateStateOrgVisibility);
+  document.getElementById('gi-country-org').addEventListener('change', updateStateOrgVisibility);
+
+  // Run on load (gi-country defaults to "United States")
+  updateStateVisibility();
+  updateStateOrgVisibility();
+
+  // ── Accreditation status badge ──
+  function updateAccreditedStatus() {
+    const badge = document.getElementById('accredited-status');
+    if (!badge) return;
+    const answered = ['i1a','i1b','i1c','i1d','i1e','i1f'].some(k => document.querySelector(`[name="${k}"]:checked`));
+    if (!answered) { badge.style.display = 'none'; return; }
+    const qualifies = ['i1a','i1b','i1c','i1d','i1e','i1f'].some(k => {
+      const el = document.querySelector(`[name="${k}"]:checked`);
+      return el && el.value === 'yes';
+    });
+    badge.style.display = 'block';
+    badge.style.background = qualifies ? '#dcfce7' : '#fee2e2';
+    badge.style.color = qualifies ? '#15803d' : '#dc2626';
+    badge.textContent = qualifies ? '✓ Accredited Investor — qualifies based on Item 1 responses' : '✗ Not Accredited — no qualifying Item 1 response selected';
+  }
+
+  ['i1a','i1b','i1c','i1d','i1e','i1f'].forEach(k => {
+    document.querySelectorAll(`[name="${k}"]`).forEach(el => el.addEventListener('change', updateAccreditedStatus));
+  });
 </script>
 </body>
 </html>
