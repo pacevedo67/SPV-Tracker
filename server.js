@@ -355,7 +355,23 @@ app.post('/api/firm/users', requireAdmin, async (req, res) => {
   try {
     const hash = await bcrypt.hash(password, 12);
     const id = uuidv4();
+    const firm = db.prepare('SELECT * FROM firms WHERE id=?').get(req.currentUser.firm_id);
     db.prepare('INSERT INTO users (id, email, password_hash, full_name, firm_id, role) VALUES (?, ?, ?, ?, ?, ?)').run(id, email.toLowerCase(), hash, full_name, req.currentUser.firm_id, role === 'admin' ? 'admin' : 'user');
+
+    // Send welcome email (non-blocking — failure doesn't fail the request)
+    sendEmail({
+      to: `${full_name} <${email.toLowerCase()}>`,
+      subject: `You've been added to ${firm.name} on SPV Tracker`,
+      html: buildWelcomeEmail({
+        name: full_name,
+        email: email.toLowerCase(),
+        password,
+        firmName: firm.name,
+        addedByName: req.currentUser.full_name,
+        loginUrl: BASE_URL,
+      }),
+    }).catch(e => console.error('Welcome email error:', e));
+
     res.json({ id, email, full_name });
   } catch (e) {
     if (e.message.includes('UNIQUE')) return res.status(400).json({ error: 'Email already registered' });
@@ -878,6 +894,30 @@ function buildResignEmail({ contactName, senderName, firmName, matterName, link,
     <p style="margin:0 0 4px;font-size:12px;color:#94a3b8;">Or copy this link:</p>
     <p style="margin:0;font-size:12px;color:#2563eb;word-break:break-all;">${link}</p>
     <img src="${BASE_URL}/track/open/${invitationId}" width="1" height="1" style="display:none;" alt="">
+  `);
+}
+
+function buildWelcomeEmail({ name, email, password, firmName, addedByName, loginUrl }) {
+  return emailWrapper(`
+    <p style="margin:0 0 8px;font-size:15px;font-weight:600;color:#0f172a;">Hi ${name},</p>
+    <p style="margin:0 0 24px;font-size:14px;color:#475569;line-height:1.6;">
+      <strong>${addedByName}</strong> has added you to <strong>${firmName}</strong> on SPV Tracker.
+      Here are your login credentials:
+    </p>
+    <table cellpadding="0" cellspacing="0" style="margin-bottom:24px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:16px 20px;">
+      <tr><td style="font-size:13px;color:#64748b;padding:4px 0;width:80px;">Email</td><td style="font-size:13px;color:#0f172a;font-weight:500;">${email}</td></tr>
+      <tr><td style="font-size:13px;color:#64748b;padding:4px 0;">Password</td><td style="font-size:13px;color:#0f172a;font-weight:500;">${password}</td></tr>
+    </table>
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+      <tr>
+        <td align="center">
+          <a href="${loginUrl}" style="display:inline-block;background:#2563eb;color:#ffffff;font-size:14px;font-weight:600;padding:12px 28px;border-radius:5px;text-decoration:none;">
+            Sign In to SPV Tracker →
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:0;font-size:12px;color:#94a3b8;">We recommend changing your password after your first login.</p>
   `);
 }
 
