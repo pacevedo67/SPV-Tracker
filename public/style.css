@@ -82,6 +82,32 @@ body {
 }
 .logo-mark svg { display: block; }
 
+/* App switcher dropdown */
+.app-switcher-wrap { position: relative; }
+.app-switcher-wrap .site-logo { cursor: pointer; }
+.app-switcher-chevron { opacity: 0.55; margin-left: 2px; transition: transform 0.2s; }
+.app-switcher-dropdown {
+  display: none; position: absolute; top: calc(100% + 8px); left: 0;
+  background: #fff; border: 1px solid #e2e0d8; border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.18); min-width: 200px;
+  z-index: 2000; padding: 5px;
+}
+.app-switcher-dropdown.open { display: block; }
+.app-switcher-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: 7px; cursor: pointer;
+  color: #1a1916; font-size: 13px; font-weight: 500;
+  transition: background 0.1s;
+}
+.app-switcher-item:hover { background: #f5f4f1; }
+.app-switcher-item.current { background: #f0ece4; }
+.app-switcher-icon {
+  width: 30px; height: 30px; border-radius: 7px;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.app-switcher-label { flex: 1; }
+.app-switcher-check { margin-left: auto; color: #c9a227; }
+
 /* Back-link variant (inner pages) */
 .site-back {
   display: flex;

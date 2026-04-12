@@ -9,12 +9,36 @@
 <body>
 <header class="site-header">
   <div class="site-header-inner">
-    <a href="/dashboard.html" class="site-logo">
-      <div class="logo-mark">
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 11L5.5 7 8 9.5 12 4" stroke="#fff" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <div class="app-switcher-wrap">
+      <a href="javascript:void(0)" class="site-logo" onclick="toggleAppSwitcher(event)">
+        <div class="logo-mark">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 11L5.5 7 8 9.5 12 4" stroke="#fff" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        SPV Tracker
+        <svg class="app-switcher-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+      </a>
+      <div class="app-switcher-dropdown" id="app-switcher-dropdown">
+        <div class="app-switcher-item current" onclick="closeAppSwitcher()">
+          <div class="app-switcher-icon" style="background:#2563eb">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 11L5.5 7 8 9.5 12 4" stroke="white" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <span class="app-switcher-label">SPV Tracker</span>
+          <svg class="app-switcher-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div class="app-switcher-item" onclick="switchToApp('https://leaderboard.phillipacevedo.com')">
+          <div class="app-switcher-icon" style="background:#3a56c0">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          </div>
+          <span class="app-switcher-label">Leaderboard</span>
+        </div>
+        <div class="app-switcher-item" onclick="switchToApp('https://dealtracker.phillipacevedo.com')">
+          <div class="app-switcher-icon" style="background:#0f1f3d">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          </div>
+          <span class="app-switcher-label">DealTracker</span>
+        </div>
       </div>
-      SPV Tracker
-    </a>
+    </div>
     <nav class="site-nav">
       <span id="user-name" style="font-size:13px;color:var(--text-muted);"></span>
       <a id="admin-link" href="/admin.html" style="display:none;">Settings</a>
@@ -148,6 +172,24 @@
 </div>
 
 <script>
+  function toggleAppSwitcher(e) {
+    e.stopPropagation();
+    const dd = document.getElementById('app-switcher-dropdown');
+    if (!dd) return;
+    dd.classList.toggle('open');
+    if (dd.classList.contains('open')) {
+      document.addEventListener('click', closeAppSwitcher, { once: true });
+    }
+  }
+  function closeAppSwitcher() {
+    const dd = document.getElementById('app-switcher-dropdown');
+    if (dd) dd.classList.remove('open');
+  }
+  function switchToApp(url) {
+    closeAppSwitcher();
+    window.open(url, '_blank');
+  }
+
   let currentUser = null;
   let investors = [];
   let selectedInvestorId = null;
