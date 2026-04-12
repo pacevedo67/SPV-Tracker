@@ -187,15 +187,16 @@
   }
   async function switchToApp(url) {
     closeAppSwitcher();
+    const win = window.open('', '_blank'); // open immediately so browser allows it
     try {
       const res = await fetch('/api/refresh', { method: 'POST' });
       if (res.ok) {
         const { token } = await res.json();
-        window.open(url + '?token=' + encodeURIComponent(token), '_blank');
+        win.location.href = url + '?token=' + encodeURIComponent(token);
         return;
       }
     } catch {}
-    window.open(url, '_blank');
+    win.location.href = url;
   }
 
   let currentUser = null;
