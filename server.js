@@ -5,7 +5,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
-const { Resend } = require('resend');
+const nodemailer = require('nodemailer');
 const db = require('./database');
 
 const app = express();
@@ -80,16 +80,23 @@ function getTokenFromRequest(req) {
   return null;
 }
 
-// ── Email via Resend ──
-const resendClient = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
-const FROM_ADDRESS = `${process.env.FROM_NAME || 'SPV Tracker'} <${process.env.FROM_EMAIL || 'noreply@example.com'}>`;
+// ── Email via SMTP (nodemailer) ──
+const FROM_ADDRESS = process.env.SMTP_FROM || 'SPV Tracker <noreply@example.com>';
+
+const smtpTransport = (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)
+  ? nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT || '587', 10),
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+    })
+  : null;
 
 async function sendEmail({ to, subject, html }) {
-  if (resendClient) {
-    const { error } = await resendClient.emails.send({ from: FROM_ADDRESS, to, subject, html });
-    if (error) throw new Error(error.message);
+  if (smtpTransport) {
+    await smtpTransport.sendMail({ from: FROM_ADDRESS, to, subject, html });
   } else {
-    console.log('\n── EMAIL (RESEND_API_KEY not set — preview only) ──');
+    console.log('\n── EMAIL (SMTP not configured — preview only) ──');
     console.log(`To: ${to}\nSubject: ${subject}\n${html.replace(/<[^>]+>/g, '').trim()}`);
     console.log('────────────────────────────────────────────────\n');
   }
@@ -944,7 +951,7 @@ function buildPasswordResetEmail(resetUrl) {
 
 app.listen(PORT, () => {
   console.log(`SPV Tracker running on http://localhost:${PORT}`);
-  if (!process.env.RESEND_API_KEY) console.warn('⚠  RESEND_API_KEY not set — emails will be logged to console only.');
+  if (!smtpTransport) console.warn('⚠  SMTP not configured (SMTP_HOST/SMTP_USER/SMTP_PASS not set) — emails will be logged to console only.');
   if (!process.env.JWT_SECRET) console.warn('⚠  JWT_SECRET not set — using insecure dev default. Set it before deploying.');
   if (!IS_PROD) console.log('   Running in development mode.');
 });
