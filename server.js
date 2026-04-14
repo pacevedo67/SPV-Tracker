@@ -46,7 +46,13 @@ app.use(session({
     maxAge: 4 * 60 * 60 * 1000, // 4 hours for guest sessions
   },
 }));
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders(res, filePath) {
+    if (filePath.endsWith('.html') || filePath.endsWith('.js')) {
+      res.setHeader('Cache-Control', 'no-cache');
+    }
+  }
+}));
 
 // ── JWT helpers (ported from DealTracker) ──
 function makeToken(user) {
