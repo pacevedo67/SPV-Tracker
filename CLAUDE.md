@@ -22,7 +22,9 @@ The investor side mirrors this pattern: `investor_users` belong to an `investor_
 
 1. **Firm-user JWT** in `auth_token` HttpOnly cookie (7-day expiry, falls back to `Authorization: Bearer`). Tokens carry `jti`; logout inserts the `jti` into `token_denylist` and that table is checked on every verify. Middleware: `requireAuth`, `requireAdmin`, `optionalAuth`.
 2. **Investor JWT** in `investor_token` HttpOnly cookie (also 7 days, also denylist-revocable, falls back to `Authorization: Investor <token>`). Carries `type: 'investor'`, `investorUserId`, `investorAccountId`, `role` (`admin` | `designee`). Middleware: `requireInvestorAuth`, `requireInvestorAdmin`. The cookie name is intentionally separate from `auth_token` so a single browser can hold both a firm session and an investor session simultaneously, and so existing `requireAuth` did not need to learn about a second token type.
-3. **express-session for anonymous investor guests.** When an investor clicks `/q/:token`, the server creates/loads a `questionnaire_submissions` row, stores `guestToken` / `guestSubId` / `guestContactName` in the session, and redirects to `/questionnaire.html?id=…&guest=1`. The `requireGuestOrAuth` middleware accepts either a firm-user JWT or a session whose `guestSubId` matches the requested submission. The session cookie is short-lived (4h). Investor JWTs are *not* yet integrated into this flow — Step 2 of `ROADMAP.md` will pre-populate signed-in investors' submissions from their profile.
+3. **express-session for anonymous investor guests.** When an investor clicks `/q/:token`, the server creates/loads a `questionnaire_submissions` row, stores `guestToken` / `guestSubId` / `guestContactName` in the session, and redirects to `/questionnaire.html?id=…&guest=1`. The `requireGuestOrAuth` middleware accepts either a firm-user JWT or a session whose `guestSubId` matches the requested submission. The session cookie is short-lived (4h).
+
+**Investor JWT + `/q/:token` integration (Step 2C):** the `/q/:token` handler also reads the `investor_token` cookie if present. If it decodes to a valid investor whose account has a member matching the invitation's contact email (case-insensitive), the new submission is created with `investor_account_id` and `investor_user_id` populated and `general_info` is pre-filled from `investor_profiles`. Designees on the account can therefore open invites addressed to any teammate. If the email doesn't match — or no investor is logged in — it falls through to the anonymous-guest flow unchanged. The questionnaire UI itself still uses the guest session for save/sign; the investor JWT is only consulted at the redirect step.
 
 `/api/submissions/:id` and `PUT /api/submissions/:id` use `optionalAuth` and dispatch on whether the caller is a firm user (full access within their firm) or a matching guest (only the one submission they were invited to).
 
@@ -58,7 +60,14 @@ SMTP via nodemailer (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_S
 
 ## Roadmap
 
-`ROADMAP.md` describes the multi-step evolution from a per-firm questionnaire tool into a portable investor-certification platform. Step 1 (investor identity layer — `investor_accounts`, `investor_users`, `investor_token` cookie, `/api/investor/*` routes, `public/investor.html`, `public/investor-dashboard.html`) is shipped. Subsequent steps add profiles, designee management, cross-firm portability, and certification expiry. Read it before making structural changes to investor-facing code.
+`ROADMAP.md` describes the multi-step evolution from a per-firm questionnaire tool into a portable investor-certification platform.
+
+- **Step 1 (shipped)** — investor identity layer: `investor_accounts`, `investor_users`, `investor_token` cookie, `/api/investor/{register,login,logout,me}`, `public/investor.html`, `public/investor-dashboard.html`.
+- **Step 2 (shipped)** — profiles, designees, prefill: `investor_profiles` table, `/api/investor/{profile,team}` routes, `public/investor-{profile,team}.html`. The `/q/:token` handler now auto-links and pre-fills submissions for logged-in investors whose account has a member matching the invite email. New columns on `questionnaire_submissions`: `investor_account_id`, `investor_user_id`.
+- **Step 3 (next)** — cross-firm portability via `certifications` and `certification_access_grants`.
+- **Step 4** — certification expiry and renewal reminders.
+
+Read `ROADMAP.md` before making structural changes to investor-facing code.
 
 ## Files to ignore
 

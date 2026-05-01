@@ -16,7 +16,7 @@ Multi-step plan to evolve SPV Tracker from a per-firm questionnaire tool into a 
 
 ---
 
-## Step 1 — Investor Identity Layer (in progress)
+## Step 1 — Investor Identity Layer ✅
 
 Foundations: investor accounts, investor logins, investor JWTs.
 
@@ -30,19 +30,33 @@ Foundations: investor accounts, investor logins, investor JWTs.
 - [x] `public/investor.html` — login + register UI
 - [x] `public/investor-dashboard.html` — placeholder dashboard
 
-**Out of scope for Step 1:** designee invitations (admin-only management UI comes in Step 2), profile fields beyond `account.name` and `user.full_name`, integration with the existing `/q/:token` guest flow.
-
 ---
 
-## Step 2 — Persistent Investor Profile
+## Step 2 — Profile, Designees, and Pre-fill ✅
 
 Investor entities carry data forward between firms and across questionnaires.
 
-- `investor_profiles` table (1:1 with `investor_accounts`): entity_type, state, mailing address, EIN/SSN last-4, phone, etc.
-- `/investor/profile.html` — editable profile page (admin-only writes, designees read-only).
-- Add `investor_user_id` and `investor_account_id` columns to `questionnaire_submissions`.
-- Pre-populate `general_info` of a new submission from the investor's profile when a logged-in investor opens a `/q/:token` link.
-- Designee management UI: `/investor/team.html` — admin can invite/remove designees by email.
+**2A — Persistent profile:**
+- [x] `investor_profiles` table (1:1 with `investor_accounts`): entity_type, state, address fields, postal_code, phone, tax_id_last4, updated_at, updated_by
+- [x] `GET /api/investor/profile` — any account member
+- [x] `PUT /api/investor/profile` — admin-only; can also rename the account
+- [x] `public/investor-profile.html` — admin can edit, designees read-only
+
+**2B — Designee management:**
+- [x] `GET /api/investor/team` — any account member
+- [x] `POST /api/investor/team` — admin invites a designee; sends a welcome email with credentials (`buildDesigneeWelcomeEmail`)
+- [x] `PUT /api/investor/team/:id` — admin renames a designee
+- [x] `DELETE /api/investor/team/:id` — admin removes a designee; cannot remove themselves; cannot remove an admin
+- [x] `public/investor-team.html` — admin sees add-designee form; designees see read-only list
+
+**2C — Pre-fill the questionnaire from profile:**
+- [x] `questionnaire_submissions.investor_account_id` and `.investor_user_id` columns
+- [x] When `/q/:token` is opened by a logged-in investor whose account contains the invitation's contact email, link the submission to that account and pre-fill `general_info` (legal_name, state, street, city, zip, phone, email) from the profile
+- [x] If a designee on the same account opens an admin-addressed invite, they auto-link too (any team member can act)
+- [x] Existing submissions get their account/user backfilled when an unauth'd guest later logs in
+- [x] Unrelated investors who open a link not addressed to their account fall through to the anonymous-guest flow unchanged
+
+**Out of scope for Step 2:** the questionnaire HTML itself does not yet *reload* prefilled values when an investor logs in mid-flow (the prefill only takes effect at submission-creation time). Will revisit if it surfaces as a real pain point.
 
 ---
 
@@ -70,8 +84,9 @@ Polish layer: keep certifications fresh.
 
 ---
 
-## Open Questions (revisit before Step 2)
+## Open Questions
 
 - Should designees have a separate role beyond a binary `admin | designee`? (e.g. `viewer` who can only read)
-- When an investor email matches an existing `investor_contacts` row at one or more firms, do we auto-link historical invitations to the newly-created investor account? Right now the answer is "no — Step 1 keeps the two worlds separate"; revisit when Step 2 lands.
+- When an investor email matches an existing `investor_contacts` row at one or more firms, do we auto-link **historical** invitations? Step 2's auto-link only fires when the investor opens a fresh `/q/:token` link while logged in. Backfilling old invitations would let a newly-registered investor pull their existing certifications onto the platform retroactively — appealing but requires UX design (which firms? do they have to consent?).
 - Cross-account designation (one user → many accounts) is deferred. If demand surfaces, replace the `investor_users.investor_account_id` FK with a `investor_account_members` join table.
+- Inactivity auto-logout (`public/inactivity.js`) currently calls `/api/logout` and so doesn't work for investor sessions. Adding an investor variant or making the script auth-aware is a small follow-up.

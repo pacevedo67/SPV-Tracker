@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Investor Profile — SPV Tracker</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site-header">
+  <div class="site-header-inner">
+    <a href="/investor-dashboard.html" class="site-logo">
+      <div class="logo-mark">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 11L5.5 7 8 9.5 12 4" stroke="#fff" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      SPV Tracker
+    </a>
+    <nav class="site-nav">
+      <a href="/investor-dashboard.html">Dashboard</a>
+      <span id="user-name" style="font-size:13px;color:var(--text-muted);"></span>
+      <button id="logout-btn">Sign out</button>
+    </nav>
+  </div>
+</header>
+
+<div class="page-wide">
+  <div style="margin-bottom:32px;">
+    <p style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:6px;">
+      Investor Profile
+    </p>
+    <h1 style="margin:0;">Entity profile</h1>
+    <p style="margin-top:4px;font-size:13px;color:var(--text-muted);">
+      This information pre-fills questionnaires across firms.
+      <span id="role-note"></span>
+    </p>
+  </div>
+
+  <div id="alert-box" style="display:none;"></div>
+
+  <div class="card">
+    <form id="profile-form">
+      <div class="field">
+        <label class="label" for="account_name">Account / Entity Name</label>
+        <input type="text" id="account_name" placeholder="Smith Family Trust" required>
+      </div>
+
+      <div class="field">
+        <label class="label" for="entity_type">Entity Type</label>
+        <select id="entity_type">
+          <option value="">— Select —</option>
+          <option value="individual">Individual</option>
+          <option value="trust">Trust</option>
+          <option value="llc">LLC</option>
+          <option value="corporation">Corporation</option>
+          <option value="partnership">Partnership</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="field">
+          <label class="label" for="state">State of Residence / Organization</label>
+          <select id="state"></select>
+        </div>
+        <div class="field">
+          <label class="label" for="postal_code">Postal Code</label>
+          <input type="text" id="postal_code" placeholder="10001">
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="label" for="address_line1">Address Line 1</label>
+        <input type="text" id="address_line1" placeholder="123 Main St">
+      </div>
+      <div class="field">
+        <label class="label" for="address_line2">Address Line 2 <span style="color:var(--text-muted);font-weight:400;">(optional)</span></label>
+        <input type="text" id="address_line2" placeholder="Suite 400">
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="field">
+          <label class="label" for="city">City</label>
+          <input type="text" id="city" placeholder="New York">
+        </div>
+        <div class="field">
+          <label class="label" for="phone">Phone</label>
+          <input type="tel" id="phone" placeholder="(555) 555-5555">
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="label" for="tax_id_last4">Tax ID — Last 4 <span style="color:var(--text-muted);font-weight:400;">(EIN or SSN)</span></label>
+        <input type="text" id="tax_id_last4" placeholder="1234" maxlength="4" pattern="[0-9]{0,4}" inputmode="numeric">
+        <p style="margin:6px 0 0;font-size:12px;color:var(--text-muted);">Only the last four digits are stored.</p>
+      </div>
+
+      <div class="btn-row" id="save-row" style="margin-top:24px;">
+        <button type="submit" class="btn btn-primary">Save profile</button>
+        <span id="save-status" style="font-size:13px;color:var(--text-muted);margin-left:12px;"></span>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  const US_STATES = [
+    'Alabama','Alaska','Arizona','Arkansas','California','Colorado','Connecticut',
+    'Delaware','District of Columbia','Florida','Georgia','Hawaii','Idaho','Illinois',
+    'Indiana','Iowa','Kansas','Kentucky','Louisiana','Maine','Maryland','Massachusetts',
+    'Michigan','Minnesota','Mississippi','Missouri','Montana','Nebraska','Nevada',
+    'New Hampshire','New Jersey','New Mexico','New York','North Carolina','North Dakota',
+    'Ohio','Oklahoma','Oregon','Pennsylvania','Rhode Island','South Carolina',
+    'South Dakota','Tennessee','Texas','Utah','Vermont','Virginia','Washington',
+    'West Virginia','Wisconsin','Wyoming',
+    'American Samoa','Guam','Northern Mariana Islands','Puerto Rico','U.S. Virgin Islands',
+  ];
+
+  const FIELDS = ['entity_type','state','address_line1','address_line2','city','postal_code','phone','tax_id_last4'];
+
+  function showAlert(msg, type='error') {
+    const box = document.getElementById('alert-box');
+    box.className = `alert alert-${type}`;
+    box.textContent = msg;
+    box.style.display = 'block';
+  }
+
+  // Populate state dropdown
+  const stateSel = document.getElementById('state');
+  stateSel.innerHTML = '<option value="">— Select —</option>' +
+    US_STATES.map(s => `<option value="${s}">${s}</option>`).join('');
+
+  let isAdmin = false;
+
+  (async function load() {
+    let me;
+    try {
+      const r = await fetch('/api/investor/me');
+      if (!r.ok) { window.location.href = '/investor.html'; return; }
+      me = await r.json();
+    } catch { window.location.href = '/investor.html'; return; }
+
+    isAdmin = me.user.role === 'admin';
+    document.getElementById('user-name').textContent = `${me.user.full_name} · ${me.user.role}`;
+    document.getElementById('role-note').textContent =
+      isAdmin ? '' : 'You are a designee — this profile is read-only.';
+
+    const r2 = await fetch('/api/investor/profile');
+    const data = await r2.json();
+    document.getElementById('account_name').value = data.account?.name || '';
+    for (const f of FIELDS) {
+      const el = document.getElementById(f);
+      if (el) el.value = data.profile?.[f] || '';
+    }
+
+    if (!isAdmin) {
+      document.getElementById('account_name').readOnly = true;
+      for (const f of FIELDS) {
+        const el = document.getElementById(f);
+        if (el) {
+          if (el.tagName === 'SELECT') el.disabled = true;
+          else el.readOnly = true;
+        }
+      }
+      document.getElementById('save-row').style.display = 'none';
+    }
+  })();
+
+  document.getElementById('profile-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    if (!isAdmin) return;
+    document.getElementById('alert-box').style.display = 'none';
+    const status = document.getElementById('save-status');
+    const btn = e.target.querySelector('button[type=submit]');
+    btn.disabled = true; status.textContent = 'Saving…';
+
+    const body = { account_name: document.getElementById('account_name').value };
+    for (const f of FIELDS) body[f] = document.getElementById(f).value;
+
+    try {
+      const res = await fetch('/api/investor/profile', {
+        method: 'PUT', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) { showAlert(data.error || 'Save failed'); status.textContent=''; btn.disabled=false; return; }
+      status.textContent = 'Saved';
+      btn.disabled = false;
+      setTimeout(() => { status.textContent = ''; }, 2000);
+    } catch {
+      showAlert('Network error');
+      status.textContent = '';
+      btn.disabled = false;
+    }
+  });
+
+  document.getElementById('logout-btn').addEventListener('click', async () => {
+    try { await fetch('/api/investor/logout', { method: 'POST' }); } catch {}
+    window.location.href = '/investor.html';
+  });
+</script>
+</body>
+</html>

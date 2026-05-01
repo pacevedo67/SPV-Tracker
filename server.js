@@ -409,6 +409,136 @@ app.get('/api/investor/me', requireInvestorAuth, (req, res) => {
   res.json({ user, account });
 });
 
+// ── Investor profile (Step 2A) ─────────────────────────────────────────
+// 1:1 with investor_accounts. Any user on the account can read; only the
+// account admin can write.
+
+const PROFILE_FIELDS = ['entity_type','state','address_line1','address_line2','city','postal_code','phone','tax_id_last4'];
+
+app.get('/api/investor/profile', requireInvestorAuth, (req, res) => {
+  const accountId = req.investor.investorAccountId;
+  const account = db.prepare('SELECT id, name FROM investor_accounts WHERE id=?').get(accountId);
+  const profile = db.prepare('SELECT * FROM investor_profiles WHERE investor_account_id=?').get(accountId)
+    || { investor_account_id: accountId };
+  res.json({ account, profile });
+});
+
+app.put('/api/investor/profile', requireInvestorAdmin, (req, res) => {
+  const accountId = req.investor.investorAccountId;
+  const userId = req.investor.investorUserId;
+
+  // Optional: rename the account itself when admin updates the profile
+  const { account_name } = req.body;
+  if (typeof account_name === 'string' && account_name.trim()) {
+    db.prepare('UPDATE investor_accounts SET name=? WHERE id=?').run(account_name.trim(), accountId);
+  }
+
+  const values = {};
+  for (const f of PROFILE_FIELDS) {
+    if (f in req.body) values[f] = (req.body[f] ?? '').toString().trim() || null;
+  }
+
+  const exists = db.prepare('SELECT 1 FROM investor_profiles WHERE investor_account_id=?').get(accountId);
+  if (exists) {
+    if (Object.keys(values).length) {
+      const sets = Object.keys(values).map(k => `${k}=?`).join(', ');
+      db.prepare(`UPDATE investor_profiles SET ${sets}, updated_at=CURRENT_TIMESTAMP, updated_by=? WHERE investor_account_id=?`)
+        .run(...Object.values(values), userId, accountId);
+    }
+  } else {
+    const cols = ['investor_account_id', ...Object.keys(values), 'updated_by'];
+    const vals = [accountId, ...Object.values(values), userId];
+    const placeholders = cols.map(() => '?').join(', ');
+    db.prepare(`INSERT INTO investor_profiles (${cols.join(', ')}) VALUES (${placeholders})`).run(...vals);
+  }
+
+  const profile = db.prepare('SELECT * FROM investor_profiles WHERE investor_account_id=?').get(accountId);
+  const account = db.prepare('SELECT id, name FROM investor_accounts WHERE id=?').get(accountId);
+  res.json({ ok: true, account, profile });
+});
+
+// ── Investor team management (Step 2B) ─────────────────────────────────
+// One admin per investor_account (the registrant). Admins may invite, rename,
+// and remove designees. Designees can read the team list but cannot mutate.
+// The admin cannot demote or remove themselves; cross-admin transfers can be
+// added later if a use case appears.
+
+app.get('/api/investor/team', requireInvestorAuth, (req, res) => {
+  const members = db.prepare(`
+    SELECT id, email, full_name, role, created_at
+    FROM investor_users
+    WHERE investor_account_id=?
+    ORDER BY (role='admin') DESC, created_at ASC
+  `).all(req.investor.investorAccountId);
+  res.json(members);
+});
+
+app.post('/api/investor/team', requireInvestorAdmin, async (req, res) => {
+  const { email, full_name, password } = req.body;
+  if (!email || !full_name || !password) {
+    return res.status(400).json({ error: 'email, full_name, and password required' });
+  }
+  if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+
+  const accountId = req.investor.investorAccountId;
+  const account = db.prepare('SELECT * FROM investor_accounts WHERE id=?').get(accountId);
+  const adminUser = db.prepare('SELECT * FROM investor_users WHERE id=?').get(req.investor.investorUserId);
+
+  try {
+    const hash = await bcrypt.hash(password, 12);
+    const id = uuidv4();
+    const emailLower = email.toLowerCase().trim();
+    db.prepare('INSERT INTO investor_users (id, investor_account_id, email, password_hash, full_name, role) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(id, accountId, emailLower, hash, full_name.trim(), 'designee');
+
+    sendEmail({
+      to: `${full_name} <${emailLower}>`,
+      subject: `You've been added to ${account.name} on SPV Tracker`,
+      html: buildDesigneeWelcomeEmail({
+        name: full_name,
+        email: emailLower,
+        password,
+        accountName: account.name,
+        addedByName: adminUser.full_name,
+        loginUrl: `${BASE_URL}/investor.html`,
+      }),
+    }).catch(e => console.error('Designee welcome email error:', e));
+
+    const created = db.prepare('SELECT id, email, full_name, role, created_at FROM investor_users WHERE id=?').get(id);
+    res.json(created);
+  } catch (e) {
+    if (e.message.includes('UNIQUE')) return res.status(400).json({ error: 'Email already registered' });
+    console.error(e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.put('/api/investor/team/:id', requireInvestorAdmin, (req, res) => {
+  const target = db.prepare('SELECT * FROM investor_users WHERE id=? AND investor_account_id=?')
+    .get(req.params.id, req.investor.investorAccountId);
+  if (!target) return res.status(404).json({ error: 'Member not found' });
+  if (target.role === 'admin') return res.status(400).json({ error: 'Cannot edit the account admin from here' });
+
+  const { full_name } = req.body;
+  if (typeof full_name === 'string' && full_name.trim()) {
+    db.prepare('UPDATE investor_users SET full_name=? WHERE id=?').run(full_name.trim(), req.params.id);
+  }
+  res.json({ ok: true });
+});
+
+app.delete('/api/investor/team/:id', requireInvestorAdmin, (req, res) => {
+  if (req.params.id === req.investor.investorUserId) {
+    return res.status(400).json({ error: 'Cannot remove yourself' });
+  }
+  const target = db.prepare('SELECT * FROM investor_users WHERE id=? AND investor_account_id=?')
+    .get(req.params.id, req.investor.investorAccountId);
+  if (!target) return res.status(404).json({ error: 'Member not found' });
+  if (target.role === 'admin') return res.status(400).json({ error: 'Cannot remove the account admin' });
+
+  db.prepare('DELETE FROM investor_users WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
 // Change password (requires current password)
 app.post('/api/change-password', requireAuth, async (req, res) => {
   const { currentPassword, newPassword } = req.body;
@@ -736,11 +866,62 @@ app.get('/q/:token', (req, res) => {
     db.prepare(`UPDATE invitations SET status='opened', opened_at=CURRENT_TIMESTAMP WHERE id=?`).run(inv.id);
   }
 
+  // Step 2C: if a logged-in investor's account has a member whose email matches
+  // the invitation's contact email, link the submission to that account so the
+  // questionnaire is owned by the investor and pre-filled from their profile.
+  // Designees on the same account can therefore open invitations addressed to
+  // the admin (or any teammate). Falls through silently if no match.
+  let investorUser = null;
+  let investorAccount = null;
+  const investorJwt = getInvestorTokenFromRequest(req);
+  if (investorJwt) {
+    try {
+      const payload = jwt.verify(investorJwt, EFFECTIVE_JWT_SECRET);
+      if (payload.type === 'investor' && payload.investorAccountId) {
+        const denied = payload.jti && db.prepare('SELECT 1 FROM token_denylist WHERE jti=?').get(payload.jti);
+        if (!denied) {
+          const matched = db.prepare(`
+            SELECT 1 FROM investor_users
+            WHERE investor_account_id=? AND lower(email)=lower(?)
+          `).get(payload.investorAccountId, inv.contact_email);
+          if (matched) {
+            investorUser = db.prepare('SELECT * FROM investor_users WHERE id=?').get(payload.investorUserId);
+            investorAccount = db.prepare('SELECT * FROM investor_accounts WHERE id=?').get(payload.investorAccountId);
+          }
+        }
+      }
+    } catch { /* invalid JWT — proceed as anonymous guest */ }
+  }
+
   let sub = db.prepare('SELECT * FROM questionnaire_submissions WHERE invitation_id=?').get(inv.id);
   if (!sub) {
     const subId = uuidv4();
-    db.prepare('INSERT INTO questionnaire_submissions (id, invitation_id, status) VALUES (?, ?, ?)').run(subId, inv.id, 'draft');
+
+    let generalInfoJson = null;
+    if (investorAccount) {
+      const profile = db.prepare('SELECT * FROM investor_profiles WHERE investor_account_id=?').get(investorAccount.id);
+      generalInfoJson = JSON.stringify({
+        legal_name: investorAccount.name,
+        state: profile?.state || '',
+        street: profile?.address_line1 || '',
+        city: profile?.city || '',
+        zip: profile?.postal_code || '',
+        phone: profile?.phone || '',
+        email: investorUser?.email || '',
+      });
+    }
+
+    db.prepare(`
+      INSERT INTO questionnaire_submissions
+        (id, invitation_id, status, investor_account_id, investor_user_id, general_info)
+      VALUES (?, ?, 'draft', ?, ?, ?)
+    `).run(subId, inv.id, investorAccount?.id || null, investorUser?.id || null, generalInfoJson);
     sub = db.prepare('SELECT * FROM questionnaire_submissions WHERE id=?').get(subId);
+  } else if (investorAccount && !sub.investor_account_id) {
+    // Backfill the linkage if the submission was created anonymously and the
+    // investor logged in afterward.
+    db.prepare(`UPDATE questionnaire_submissions SET investor_account_id=?, investor_user_id=? WHERE id=?`)
+      .run(investorAccount.id, investorUser.id, sub.id);
   }
 
   req.session.guestToken = req.params.token;
@@ -1051,6 +1232,30 @@ function buildWelcomeEmail({ name, email, password, firmName, addedByName, login
     <p style="margin:0 0 24px;font-size:14px;color:#475569;line-height:1.6;">
       <strong>${addedByName}</strong> has added you to <strong>${firmName}</strong> on SPV Tracker.
       Here are your login credentials:
+    </p>
+    <table cellpadding="0" cellspacing="0" style="margin-bottom:24px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:16px 20px;">
+      <tr><td style="font-size:13px;color:#64748b;padding:4px 0;width:80px;">Email</td><td style="font-size:13px;color:#0f172a;font-weight:500;">${email}</td></tr>
+      <tr><td style="font-size:13px;color:#64748b;padding:4px 0;">Password</td><td style="font-size:13px;color:#0f172a;font-weight:500;">${password}</td></tr>
+    </table>
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+      <tr>
+        <td align="center">
+          <a href="${loginUrl}" style="display:inline-block;background:#2563eb;color:#ffffff;font-size:14px;font-weight:600;padding:12px 28px;border-radius:5px;text-decoration:none;">
+            Sign In to SPV Tracker →
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:0;font-size:12px;color:#94a3b8;">We recommend changing your password after your first login.</p>
+  `);
+}
+
+function buildDesigneeWelcomeEmail({ name, email, password, accountName, addedByName, loginUrl }) {
+  return emailWrapper(`
+    <p style="margin:0 0 8px;font-size:15px;font-weight:600;color:#0f172a;">Hi ${name},</p>
+    <p style="margin:0 0 24px;font-size:14px;color:#475569;line-height:1.6;">
+      <strong>${addedByName}</strong> has added you as a designee on <strong>${accountName}</strong> in SPV Tracker.
+      You can fill out and sign questionnaires on behalf of this investor account. Here are your login credentials:
     </p>
     <table cellpadding="0" cellspacing="0" style="margin-bottom:24px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:16px 20px;">
       <tr><td style="font-size:13px;color:#64748b;padding:4px 0;width:80px;">Email</td><td style="font-size:13px;color:#0f172a;font-weight:500;">${email}</td></tr>

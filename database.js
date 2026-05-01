@@ -125,6 +125,22 @@ db.exec(`
     role TEXT NOT NULL DEFAULT 'admin' CHECK (role IN ('admin', 'designee')),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  -- 1:1 with investor_accounts. Owns the entity-level info that pre-fills
+  -- questionnaires across firms (Step 2A of ROADMAP.md).
+  CREATE TABLE IF NOT EXISTS investor_profiles (
+    investor_account_id TEXT PRIMARY KEY REFERENCES investor_accounts(id) ON DELETE CASCADE,
+    entity_type TEXT,
+    state TEXT,
+    address_line1 TEXT,
+    address_line2 TEXT,
+    city TEXT,
+    postal_code TEXT,
+    phone TEXT,
+    tax_id_last4 TEXT,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_by TEXT REFERENCES investor_users(id)
+  );
 `);
 
 // ── Idempotent migrations ──
@@ -136,6 +152,8 @@ const migrations = [
   `ALTER TABLE questionnaire_submissions ADD COLUMN signature_type TEXT`,
   `ALTER TABLE questionnaire_submissions ADD COLUMN signed_at DATETIME`,
   `ALTER TABLE matters ADD COLUMN client TEXT`,
+  `ALTER TABLE questionnaire_submissions ADD COLUMN investor_account_id TEXT REFERENCES investor_accounts(id)`,
+  `ALTER TABLE questionnaire_submissions ADD COLUMN investor_user_id TEXT REFERENCES investor_users(id)`,
 ];
 for (const sql of migrations) {
   try { db.prepare(sql).run(); } catch {}
