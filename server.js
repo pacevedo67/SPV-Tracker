@@ -86,6 +86,38 @@ function getTokenFromRequest(req) {
   return null;
 }
 
+// ── Investor JWT helpers (separate cookie so firm + investor sessions can coexist) ──
+function makeInvestorToken(user) {
+  return jwt.sign({
+    jti:               crypto.randomBytes(16).toString('hex'),
+    type:              'investor',
+    investorUserId:    user.id,
+    investorAccountId: user.investor_account_id,
+    email:             user.email,
+    full_name:         user.full_name,
+    role:              user.role,
+  }, EFFECTIVE_JWT_SECRET, { expiresIn: JWT_EXPIRY });
+}
+
+function setInvestorAuthCookie(res, token) {
+  res.setHeader('Set-Cookie',
+    `investor_token=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${COOKIE_MAX_AGE}${IS_PROD ? '; Secure' : ''}`
+  );
+}
+
+function clearInvestorAuthCookie(res) {
+  res.setHeader('Set-Cookie', 'investor_token=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0');
+}
+
+function getInvestorTokenFromRequest(req) {
+  const cookieHeader = req.headers.cookie || '';
+  const match = cookieHeader.match(/(?:^|;\s*)investor_token=([^;]+)/);
+  if (match) return match[1];
+  const header = req.headers.authorization || '';
+  if (header.startsWith('Investor ')) return header.slice(9);
+  return null;
+}
+
 // ── Email via SMTP (nodemailer) ──
 const FROM_ADDRESS = process.env.SMTP_FROM || 'SPV Tracker <noreply@example.com>';
 
@@ -181,6 +213,31 @@ function requireAdmin(req, res, next) {
   if (!user) return res.status(404).json({ error: 'User not found' });
   req.currentUser = user;
   next();
+}
+
+// Verify an investor JWT and populate req.investor with the payload.
+function requireInvestorAuth(req, res, next) {
+  const token = getInvestorTokenFromRequest(req);
+  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+  try {
+    const payload = jwt.verify(token, EFFECTIVE_JWT_SECRET);
+    if (payload.type !== 'investor') return res.status(401).json({ error: 'Invalid token type' });
+    if (payload.jti) {
+      const denied = db.prepare('SELECT 1 FROM token_denylist WHERE jti = ?').get(payload.jti);
+      if (denied) return res.status(401).json({ error: 'Session revoked. Please sign in again.' });
+    }
+    req.investor = payload;
+    next();
+  } catch(e) {
+    return res.status(401).json({ error: 'Invalid or expired session' });
+  }
+}
+
+function requireInvestorAdmin(req, res, next) {
+  requireInvestorAuth(req, res, () => {
+    if (req.investor.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
+    next();
+  });
 }
 
 // ── Auth ──
@@ -287,6 +344,69 @@ app.post('/api/refresh', requireAuth, (req, res) => {
   const token = makeToken(user);
   setAuthCookie(res, token);
   res.json({ ok: true, token });
+});
+
+// ── Investor auth (Step 1) ───────────────────────────────────────────────
+// Investors register their entity (investor_account) along with their own
+// admin user in a single call. Designee invitations land in Step 2.
+
+app.post('/api/investor/register', async (req, res) => {
+  const { email, password, full_name, account_name } = req.body;
+  if (!email || !password || !full_name || !account_name) {
+    return res.status(400).json({ error: 'All fields required' });
+  }
+  if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  try {
+    const hash = await bcrypt.hash(password, 12);
+    const userId = uuidv4();
+    const accountId = uuidv4();
+    db.prepare('INSERT INTO investor_accounts (id, name) VALUES (?, ?)').run(accountId, account_name.trim());
+    db.prepare('INSERT INTO investor_users (id, investor_account_id, email, password_hash, full_name, role) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(userId, accountId, email.toLowerCase().trim(), hash, full_name.trim(), 'admin');
+    const user = db.prepare('SELECT * FROM investor_users WHERE id=?').get(userId);
+    const token = makeInvestorToken(user);
+    setInvestorAuthCookie(res, token);
+    res.json({ ok: true });
+  } catch (e) {
+    if (e.message.includes('UNIQUE')) return res.status(400).json({ error: 'Email already registered' });
+    console.error(e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/investor/login', async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+  const user = db.prepare('SELECT * FROM investor_users WHERE email=?').get(email.toLowerCase().trim());
+  if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+  const ok = await bcrypt.compare(password, user.password_hash);
+  if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
+  const token = makeInvestorToken(user);
+  setInvestorAuthCookie(res, token);
+  res.json({ ok: true });
+});
+
+app.post('/api/investor/logout', (req, res) => {
+  const token = getInvestorTokenFromRequest(req);
+  if (token) {
+    try {
+      const payload = jwt.decode(token);
+      if (payload?.jti && payload?.exp) {
+        const expiresAt = new Date(payload.exp * 1000).toISOString();
+        db.prepare('INSERT OR IGNORE INTO token_denylist (jti, expires_at) VALUES (?, ?)').run(payload.jti, expiresAt);
+        db.prepare("DELETE FROM token_denylist WHERE expires_at < datetime('now')").run();
+      }
+    } catch(e) { /* ignore decode errors */ }
+  }
+  clearInvestorAuthCookie(res);
+  res.json({ ok: true });
+});
+
+app.get('/api/investor/me', requireInvestorAuth, (req, res) => {
+  const user = db.prepare('SELECT id, email, full_name, role, investor_account_id, created_at FROM investor_users WHERE id=?').get(req.investor.investorUserId);
+  if (!user) return res.status(404).json({ error: 'Investor user not found' });
+  const account = db.prepare('SELECT id, name, created_at FROM investor_accounts WHERE id=?').get(user.investor_account_id);
+  res.json({ user, account });
 });
 
 // Change password (requires current password)

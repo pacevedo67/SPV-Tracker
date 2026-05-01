@@ -105,6 +105,28 @@ db.exec(`
   );
 `);
 
+// ── Investor accounts (Step 1: identity layer) ──
+// investor_accounts is the entity being certified (e.g. "Smith Family Trust").
+// investor_users are the individual logins tied to that account, with one admin
+// (the registrant) and zero or more designees who can act on its behalf.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS investor_accounts (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS investor_users (
+    id TEXT PRIMARY KEY,
+    investor_account_id TEXT NOT NULL REFERENCES investor_accounts(id) ON DELETE CASCADE,
+    email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    full_name TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'admin' CHECK (role IN ('admin', 'designee')),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
 // ── Idempotent migrations ──
 const migrations = [
   `ALTER TABLE users ADD COLUMN firm_id TEXT`,

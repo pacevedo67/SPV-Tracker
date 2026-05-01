@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Investor Portal — SPV Tracker</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="auth-wrap">
+  <div class="auth-box">
+    <div class="auth-brand">
+      <div class="logo-mark">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 11L5.5 7 8 9.5 12 4" stroke="#fff" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <span class="auth-brand-text">SPV Tracker</span>
+    </div>
+    <div style="margin-bottom:28px;">
+      <h1 id="form-title" style="font-size:20px;">Investor sign in</h1>
+      <p style="margin-top:4px;font-size:13px;">Manage your accreditation across firms</p>
+    </div>
+
+    <div class="card">
+      <div id="alert-box" style="display:none;"></div>
+
+      <!-- Login form -->
+      <form id="login-form">
+        <div class="field">
+          <label class="label" for="l-email">Email</label>
+          <input type="email" id="l-email" placeholder="you@example.com" autocomplete="email" required>
+        </div>
+        <div class="field">
+          <label class="label" for="l-password">Password</label>
+          <input type="password" id="l-password" placeholder="••••••••" autocomplete="current-password" required>
+        </div>
+        <div class="btn-row" style="margin-top:20px;">
+          <button type="submit" class="btn btn-primary" style="width:100%;">Sign in</button>
+        </div>
+        <p style="margin-top:12px;text-align:center;">
+          <a href="#" id="go-register" style="font-size:13px;color:var(--text-muted);text-decoration:none;">Create an investor account →</a>
+        </p>
+        <p style="margin-top:8px;text-align:center;">
+          <a href="/" style="font-size:13px;color:var(--text-muted);text-decoration:none;">I'm a firm user →</a>
+        </p>
+      </form>
+
+      <!-- Register form -->
+      <form id="register-form" style="display:none;">
+        <div class="field">
+          <label class="label" for="r-account">Account Name</label>
+          <input type="text" id="r-account" placeholder="Smith Family Trust" required>
+          <p style="margin:6px 0 0;font-size:12px;color:var(--text-muted);">The legal entity being certified.</p>
+        </div>
+        <div class="field">
+          <label class="label" for="r-name">Your Full Name</label>
+          <input type="text" id="r-name" placeholder="Jane Smith" required>
+        </div>
+        <div class="field">
+          <label class="label" for="r-email">Email</label>
+          <input type="email" id="r-email" placeholder="you@example.com" autocomplete="email" required>
+          <p style="margin:6px 0 0;font-size:12px;color:var(--text-muted);">This will be the admin email for the account.</p>
+        </div>
+        <div class="field">
+          <label class="label" for="r-password">Password</label>
+          <input type="password" id="r-password" placeholder="••••••••" autocomplete="new-password" required>
+        </div>
+        <div class="btn-row" style="margin-top:20px;">
+          <button type="submit" class="btn btn-primary" style="width:100%;">Create account</button>
+        </div>
+        <p style="margin-top:16px;text-align:center;">
+          <a href="#" id="go-login" style="font-size:13px;color:var(--text-muted);text-decoration:none;">← Back to sign in</a>
+        </p>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  const alertBox = document.getElementById('alert-box');
+  function showAlert(msg, type='error') {
+    alertBox.className = `alert alert-${type}`;
+    alertBox.textContent = msg;
+    alertBox.style.display = 'block';
+  }
+
+  function showForm(name) {
+    ['login-form', 'register-form'].forEach(id => {
+      document.getElementById(id).style.display = id === name ? 'block' : 'none';
+    });
+    document.getElementById('form-title').textContent =
+      name === 'register-form' ? 'Create investor account' : 'Investor sign in';
+    alertBox.style.display = 'none';
+  }
+
+  document.getElementById('go-register').addEventListener('click', e => { e.preventDefault(); showForm('register-form'); });
+  document.getElementById('go-login').addEventListener('click', e => { e.preventDefault(); showForm('login-form'); });
+
+  document.getElementById('login-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    alertBox.style.display = 'none';
+    const btn = e.target.querySelector('button[type=submit]');
+    btn.disabled = true; btn.textContent = 'Signing in…';
+    try {
+      const res = await fetch('/api/investor/login', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          email: document.getElementById('l-email').value,
+          password: document.getElementById('l-password').value
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) { showAlert(data.error); btn.disabled=false; btn.textContent='Sign in'; return; }
+      window.location.href = '/investor-dashboard.html';
+    } catch { showAlert('Network error'); btn.disabled=false; btn.textContent='Sign in'; }
+  });
+
+  document.getElementById('register-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    alertBox.style.display = 'none';
+    const btn = e.target.querySelector('button[type=submit]');
+    btn.disabled = true; btn.textContent = 'Creating…';
+    try {
+      const res = await fetch('/api/investor/register', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          account_name: document.getElementById('r-account').value,
+          full_name: document.getElementById('r-name').value,
+          email: document.getElementById('r-email').value,
+          password: document.getElementById('r-password').value
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) { showAlert(data.error); btn.disabled=false; btn.textContent='Create account'; return; }
+      window.location.href = '/investor-dashboard.html';
+    } catch { showAlert('Network error'); btn.disabled=false; btn.textContent='Create account'; }
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Investor Dashboard — SPV Tracker</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site-header">
+  <div class="site-header-inner">
+    <a href="/investor-dashboard.html" class="site-logo">
+      <div class="logo-mark">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 11L5.5 7 8 9.5 12 4" stroke="#fff" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      SPV Tracker
+    </a>
+    <nav class="site-nav">
+      <span id="user-name" style="font-size:13px;color:var(--text-muted);"></span>
+      <button id="logout-btn">Sign out</button>
+    </nav>
+  </div>
+</header>
+
+<div class="page-wide">
+  <div style="margin-bottom:32px;">
+    <p style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:6px;">
+      Investor Account
+    </p>
+    <h1 id="account-name" style="margin:0;">…</h1>
+    <p id="account-meta" style="margin-top:4px;font-size:13px;color:var(--text-muted);"></p>
+  </div>
+
+  <div class="card" style="margin-bottom:24px;">
+    <h3 style="margin-bottom:12px;">Welcome to your investor dashboard</h3>
+    <p style="font-size:14px;color:var(--text-muted);margin-bottom:8px;">
+      You're signed in as the admin for this investor account. From here you'll soon be able to:
+    </p>
+    <ul style="font-size:14px;color:var(--text-muted);line-height:1.8;padding-left:18px;">
+      <li>Maintain an investor profile that pre-fills questionnaires across firms</li>
+      <li>Add designees to act on your behalf</li>
+      <li>View and manage which firms can see your accreditation</li>
+      <li>Renew certifications before they expire</li>
+    </ul>
+    <p style="margin-top:16px;font-size:12px;color:var(--text-muted);">
+      These features are rolling out in stages — see <code>ROADMAP.md</code> in the repo for status.
+    </p>
+  </div>
+</div>
+
+<script>
+  (async function load() {
+    try {
+      const res = await fetch('/api/investor/me');
+      if (!res.ok) { window.location.href = '/investor.html'; return; }
+      const { user, account } = await res.json();
+      document.getElementById('user-name').textContent = `${user.full_name} · ${user.role}`;
+      document.getElementById('account-name').textContent = account.name;
+      const created = new Date(account.created_at).toLocaleDateString();
+      document.getElementById('account-meta').textContent =
+        `Created ${created} · Admin: ${user.email}`;
+    } catch {
+      window.location.href = '/investor.html';
+    }
+  })();
+
+  document.getElementById('logout-btn').addEventListener('click', async () => {
+    try { await fetch('/api/investor/logout', { method: 'POST' }); } catch {}
+    window.location.href = '/investor.html';
+  });
+</script>
+</body>
+</html>
