@@ -143,6 +143,36 @@ db.exec(`
   );
 `);
 
+// ── Certifications & cross-firm access grants (Step 3) ──
+// A certification is the canonical record that a given investor account is
+// accredited as of a given signed submission. Grants connect it to the firms
+// the investor has chosen to share that status with. When an investor signs a
+// new submission, the prior cert (if any) is marked 'superseded' and a new
+// active row is inserted; existing grants do not carry over automatically —
+// firms must already be on the new cert's grant list (the sign handler
+// re-grants the inviting firm and rolls forward firms with active grants on
+// the prior cert).
+db.exec(`
+  CREATE TABLE IF NOT EXISTS certifications (
+    id TEXT PRIMARY KEY,
+    investor_account_id TEXT NOT NULL REFERENCES investor_accounts(id) ON DELETE CASCADE,
+    submission_id TEXT NOT NULL UNIQUE REFERENCES questionnaire_submissions(id) ON DELETE CASCADE,
+    certified_at DATETIME NOT NULL,
+    expires_at DATETIME,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','superseded','revoked','expired')),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS certification_access_grants (
+    id TEXT PRIMARY KEY,
+    certification_id TEXT NOT NULL REFERENCES certifications(id) ON DELETE CASCADE,
+    firm_id TEXT NOT NULL REFERENCES firms(id),
+    granted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    revoked_at DATETIME,
+    UNIQUE(certification_id, firm_id)
+  );
+`);
+
 // ── Idempotent migrations ──
 const migrations = [
   `ALTER TABLE users ADD COLUMN firm_id TEXT`,
@@ -154,10 +184,29 @@ const migrations = [
   `ALTER TABLE matters ADD COLUMN client TEXT`,
   `ALTER TABLE questionnaire_submissions ADD COLUMN investor_account_id TEXT REFERENCES investor_accounts(id)`,
   `ALTER TABLE questionnaire_submissions ADD COLUMN investor_user_id TEXT REFERENCES investor_users(id)`,
+  // Step 3: invitations can be either a questionnaire (default) or an
+  // access_request asking an investor to grant the firm access to their
+  // existing portable certification.
+  `ALTER TABLE invitations ADD COLUMN type TEXT NOT NULL DEFAULT 'questionnaire'`,
+  `ALTER TABLE invitations ADD COLUMN certification_id TEXT REFERENCES certifications(id)`,
+  // Step 4: track when we last emailed the investor about an upcoming expiry
+  // so the daily sweeper doesn't spam them. Cleared (left NULL) on new certs
+  // since superseding mints a fresh row.
+  `ALTER TABLE certifications ADD COLUMN expiry_reminder_sent_at DATETIME`,
 ];
 for (const sql of migrations) {
   try { db.prepare(sql).run(); } catch {}
 }
+
+// Step 4 backfill: existing active certs may have been minted before
+// expires_at was being set. Default them to certified_at + 1 year so the
+// expiry sweeper has something to compare against. Idempotent — only fills
+// rows where expires_at IS NULL.
+db.prepare(`
+  UPDATE certifications
+  SET expires_at = datetime(certified_at, '+1 year')
+  WHERE expires_at IS NULL
+`).run();
 
 // ── Seed: give existing users without a firm their own firm ──
 const { v4: uuidv4 } = require('uuid');

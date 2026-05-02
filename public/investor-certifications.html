@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Certifications — SPV Tracker</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .cert-card { border:1px solid var(--border);border-radius:6px;padding:20px 24px;margin-bottom:16px;background:var(--surface); }
+    .cert-head { display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:14px; }
+    .cert-status { display:inline-block;padding:2px 9px;font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.04em;border-radius:999px; }
+    .cert-status-active     { background:#dcfce7;color:#15803d; }
+    .cert-status-superseded { background:#f1f5f9;color:#64748b; }
+    .cert-status-revoked    { background:#fee2e2;color:#b91c1c; }
+    .cert-status-expired    { background:#fef3c7;color:#92400e; }
+    .expiry-tag { display:inline-block;padding:2px 9px;font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.04em;border-radius:999px;margin-left:6px; }
+    .expiry-tag-soon    { background:#fef3c7;color:#92400e; }
+    .expiry-tag-expired { background:#fee2e2;color:#b91c1c; }
+    .grant-row { display:grid;grid-template-columns:1fr 140px 90px;gap:16px;align-items:center;padding:10px 0;border-top:1px solid var(--border);font-size:13px; }
+    .grant-row:first-of-type { border-top:none; }
+    .req-row { display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0;border-bottom:1px solid var(--border);font-size:13px; }
+    .req-row:last-child { border-bottom:none; }
+    .req-actions { display:flex;gap:8px; }
+  </style>
+</head>
+<body>
+<header class="site-header">
+  <div class="site-header-inner">
+    <a href="/investor-dashboard.html" class="site-logo">
+      <div class="logo-mark">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 11L5.5 7 8 9.5 12 4" stroke="#fff" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      SPV Tracker
+    </a>
+    <nav class="site-nav">
+      <a href="/investor-dashboard.html">Dashboard</a>
+      <a href="/investor-profile.html">Profile</a>
+      <a href="/investor-team.html">Team</a>
+      <span id="user-name" style="font-size:13px;color:var(--text-muted);"></span>
+      <button id="logout-btn">Sign out</button>
+    </nav>
+  </div>
+</header>
+
+<div class="page-wide">
+  <div style="margin-bottom:32px;">
+    <p style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:6px;">
+      Your portable record
+    </p>
+    <h1 style="margin:0;">Certifications</h1>
+    <p style="margin-top:4px;font-size:13px;color:var(--text-muted);">
+      Each signed questionnaire issues a portable certification. You decide which firms can rely on it.
+    </p>
+  </div>
+
+  <div id="alert-global" style="display:none;" class="alert"></div>
+
+  <section id="requests-section" style="display:none;margin-bottom:32px;">
+    <h2 style="font-size:15px;margin-bottom:12px;">Pending access requests</h2>
+    <div class="card">
+      <div id="requests-list"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 style="font-size:15px;margin-bottom:12px;">All certifications</h2>
+    <div id="certs-list"></div>
+    <div id="certs-empty" style="display:none;" class="card">
+      <p style="margin:0;color:var(--text-muted);font-size:13px;">
+        No certifications yet. They appear here automatically when you sign a questionnaire.
+      </p>
+    </div>
+  </section>
+</div>
+
+<script>
+  let me = null;
+
+  async function init() {
+    try {
+      const r = await fetch('/api/investor/me');
+      if (!r.ok) { location.href = '/investor.html'; return; }
+      const data = await r.json();
+      me = data.user;
+    } catch { location.href = '/investor.html'; return; }
+    document.getElementById('user-name').textContent = `${me.full_name} · ${me.role}`;
+    await load();
+  }
+
+  async function load() {
+    const r = await fetch('/api/investor/certifications');
+    if (!r.ok) { showGlobal('Failed to load certifications.', 'error'); return; }
+    const data = await r.json();
+    renderRequests(data.pending_requests || []);
+    renderCerts(data.certifications || []);
+  }
+
+  function renderRequests(reqs) {
+    const section = document.getElementById('requests-section');
+    const list = document.getElementById('requests-list');
+    if (!reqs.length) { section.style.display = 'none'; list.innerHTML = ''; return; }
+    section.style.display = 'block';
+    list.innerHTML = reqs.map(r => `
+      <div class="req-row" data-id="${r.invitation_id}">
+        <div>
+          <div style="font-weight:500;">${esc(r.firm_name)} — ${esc(r.matter_name)}</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">
+            Sent by ${esc(r.sent_by_name)} on ${fmtDate(r.sent_at)}.
+            Approving grants ${esc(r.firm_name)} access to your most recent active certification.
+          </div>
+        </div>
+        <div class="req-actions">
+          <button class="btn btn-primary approve-btn" data-id="${r.invitation_id}" style="font-size:12px;padding:6px 14px;">Approve</button>
+          <button class="btn btn-ghost deny-btn" data-id="${r.invitation_id}" style="font-size:12px;padding:6px 14px;color:var(--error);">Deny</button>
+        </div>
+      </div>
+    `).join('');
+
+    list.querySelectorAll('.approve-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        btn.disabled = true; btn.textContent = '…';
+        const r = await fetch(`/api/investor/access-requests/${btn.dataset.id}/approve`, { method:'POST' });
+        if (r.ok) { showGlobal('Access granted.', 'success'); await load(); }
+        else { const d=await r.json(); showGlobal(d.error || 'Failed to approve', 'error'); btn.disabled=false; btn.textContent='Approve'; }
+      });
+    });
+    list.querySelectorAll('.deny-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Decline this access request?')) return;
+        btn.disabled = true; btn.textContent = '…';
+        const r = await fetch(`/api/investor/access-requests/${btn.dataset.id}/deny`, { method:'POST' });
+        if (r.ok) { showGlobal('Request declined.', 'success'); await load(); }
+        else { const d=await r.json(); showGlobal(d.error || 'Failed to deny', 'error'); btn.disabled=false; btn.textContent='Deny'; }
+      });
+    });
+  }
+
+  function renderCerts(certs) {
+    const list = document.getElementById('certs-list');
+    const empty = document.getElementById('certs-empty');
+    if (!certs.length) { list.innerHTML=''; empty.style.display='block'; return; }
+    empty.style.display='none';
+
+    list.innerHTML = certs.map(c => {
+      const activeGrants = (c.grants || []).filter(g => !g.revoked_at);
+      const revokedGrants = (c.grants || []).filter(g => g.revoked_at);
+      const expiry = expiryInfo(c);
+      const showRenew = c.status === 'active' || c.status === 'expired';
+      return `
+        <div class="cert-card">
+          <div class="cert-head">
+            <div>
+              <div style="font-size:14px;font-weight:600;">
+                Certified ${fmtDate(c.certified_at)}
+                ${c.issued_via_firm_name ? ` · via ${esc(c.issued_via_firm_name)}` : ''}
+              </div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">
+                Signed by ${esc(c.signature_name || '—')}${c.matter_name ? ` for ${esc(c.matter_name)}` : ''}
+              </div>
+              ${c.expires_at ? `
+                <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">
+                  ${expiry.expired ? 'Expired' : 'Expires'} ${fmtDate(c.expires_at)}
+                  ${expiry.tag ? `<span class="expiry-tag expiry-tag-${expiry.tag}">${expiry.label}</span>` : ''}
+                </div>` : ''}
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+              <span class="cert-status cert-status-${c.status}">${c.status}</span>
+              ${showRenew ? `<button class="btn btn-outline renew-btn" data-id="${c.id}" style="font-size:12px;padding:5px 12px;">Renew</button>` : ''}
+            </div>
+          </div>
+
+          ${activeGrants.length ? `
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:6px 0 4px;">Firms with access</div>
+            ${activeGrants.map(g => `
+              <div class="grant-row" data-id="${g.id}">
+                <div style="font-weight:500;">${esc(g.firm_name)}</div>
+                <div style="color:var(--text-muted);font-size:12px;">Granted ${fmtDate(g.granted_at)}</div>
+                <div style="text-align:right;">
+                  ${c.status === 'active'
+                    ? `<button class="btn btn-ghost revoke-btn" data-id="${g.id}" style="font-size:12px;color:var(--error);">Revoke</button>`
+                    : ''}
+                </div>
+              </div>
+            `).join('')}
+          ` : `
+            <p style="margin:8px 0 0;font-size:13px;color:var(--text-muted);">No firms currently have access to this certification.</p>
+          `}
+
+          ${revokedGrants.length ? `
+            <details style="margin-top:14px;">
+              <summary style="cursor:pointer;font-size:12px;color:var(--text-muted);">${revokedGrants.length} revoked</summary>
+              ${revokedGrants.map(g => `
+                <div class="grant-row" style="opacity:.6;">
+                  <div>${esc(g.firm_name)}</div>
+                  <div style="color:var(--text-muted);font-size:12px;">Revoked ${fmtDate(g.revoked_at)}</div>
+                  <div></div>
+                </div>
+              `).join('')}
+            </details>
+          ` : ''}
+        </div>
+      `;
+    }).join('');
+
+    list.querySelectorAll('.revoke-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm("Revoke this firm's access to your certification? They will no longer be able to view the underlying questionnaire.")) return;
+        btn.disabled = true; btn.textContent = '…';
+        const r = await fetch(`/api/investor/certifications/grants/${btn.dataset.id}`, { method:'DELETE' });
+        if (r.ok) { showGlobal('Access revoked.', 'success'); await load(); }
+        else { const d=await r.json(); showGlobal(d.error || 'Failed to revoke', 'error'); btn.disabled=false; btn.textContent='Revoke'; }
+      });
+    });
+
+    list.querySelectorAll('.renew-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Start a renewal questionnaire? It will be pre-filled with your current answers — review, sign, and the new certification will replace this one. Firms with current access will keep it.')) return;
+        btn.disabled = true; btn.textContent = '…';
+        const r = await fetch(`/api/investor/certifications/${btn.dataset.id}/renew`, { method:'POST' });
+        if (r.ok) {
+          const d = await r.json();
+          location.href = d.redirect;
+        } else {
+          const d = await r.json();
+          showGlobal(d.error || 'Failed to start renewal', 'error');
+          btn.disabled = false; btn.textContent = 'Renew';
+        }
+      });
+    });
+  }
+
+  // Returns { expired, tag, label } for the given cert.
+  // tag is 'expired' | 'soon' | null; label is the badge text.
+  function expiryInfo(c) {
+    if (!c.expires_at) return { expired:false, tag:null, label:'' };
+    const now = Date.now();
+    const exp = new Date(c.expires_at + 'Z').getTime();
+    const days = Math.ceil((exp - now) / (1000*60*60*24));
+    if (c.status === 'expired' || days <= 0) return { expired:true, tag:'expired', label:'Expired' };
+    if (days <= 30 && c.status === 'active') return { expired:false, tag:'soon', label:`Expires in ${days}d` };
+    return { expired:false, tag:null, label:'' };
+  }
+
+  function showGlobal(msg, type) {
+    const el = document.getElementById('alert-global');
+    el.className = `alert alert-${type}`; el.textContent = msg; el.style.display = 'block';
+    setTimeout(() => el.style.display = 'none', 3000);
+  }
+  function fmtDate(s) {
+    if (!s) return '—';
+    return new Date(s).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+  }
+  function esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  document.getElementById('logout-btn').addEventListener('click', async () => {
+    try { await fetch('/api/investor/logout', { method:'POST' }); } catch {}
+    location.href = '/investor.html';
+  });
+
+  init();
+</script>
+</body>
+</html>

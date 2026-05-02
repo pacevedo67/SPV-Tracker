@@ -14,6 +14,12 @@
     .status-completed  { background:#dcfce7;color:#15803d; }
     .status-revised    { background:#fef3c7;color:#92400e; }
     .status-draft      { background:#f1f5f9;color:var(--text-muted); }
+    .status-granted    { background:#dcfce7;color:#15803d; }
+    .status-denied     { background:#fee2e2;color:#b91c1c; }
+    .cert-tag { display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#15803d;margin-top:3px; }
+    .expiry-tag { display:inline-block;padding:1px 7px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.04em;border-radius:999px;margin-left:6px; }
+    .expiry-tag-soon    { background:#fef3c7;color:#92400e; }
+    .expiry-tag-expired { background:#fee2e2;color:#b91c1c; }
 
     .investor-row { display:grid;grid-template-columns:32px 1fr 1fr 120px 120px 180px;gap:16px;align-items:center;padding:13px 0;border-bottom:1px solid var(--border);font-size:13px;transition:background .1s; }
     .investor-row:last-child { border-bottom:none; }
@@ -67,8 +73,10 @@
       <label class="label" for="c-entity">Entity Name <span style="color:var(--text-muted);font-weight:400;">(optional)</span></label>
       <input type="text" id="c-entity" placeholder="e.g. Smith Family Trust">
     </div>
+    <div id="cert-hint" style="display:none;background:#ecfdf5;border:1px solid #a7f3d0;color:#047857;padding:10px 12px;border-radius:5px;font-size:12px;margin-bottom:12px;line-height:1.5;"></div>
     <div class="btn-row">
       <button class="btn btn-primary" id="save-contact-btn">Add &amp; Send Invitation</button>
+      <button class="btn btn-outline" id="request-access-btn" style="display:none;">Request Portable Access</button>
       <button class="btn btn-ghost" id="cancel-contact-btn">Cancel</button>
     </div>
   </div>
@@ -172,11 +180,14 @@
     applySort();
   }
 
-  function statusLabel(s) {
+  function statusLabel(s, type) {
+    if (type === 'access_request') {
+      return { sent:'Awaiting Approval', opened:'Awaiting Approval', granted:'Access Granted', denied:'Access Denied' }[s] || s;
+    }
     return { sent:'Sent', opened:'Opened', in_progress:'In Progress', signed:'Signed', completed:'Signed', revised:'Awaiting Re-signature', draft:'Draft' }[s] || s;
   }
 
-  const STATUS_ORDER = ['draft','sent','opened','in_progress','revised','signed','completed'];
+  const STATUS_ORDER = ['draft','sent','opened','in_progress','revised','signed','completed','granted','denied'];
 
   function activityDate(inv) {
     return inv.completed_at || inv.opened_at || inv.sent_at || '';
@@ -224,24 +235,57 @@
         : inv.opened_at
           ? new Date(inv.opened_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
           : inv.sent_at ? new Date(inv.sent_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+
+      const isAccessRequest = inv.type === 'access_request';
+      // Show the portable-cert badge whenever the firm currently has a live grant
+      // tied to this invitation's certification — works for both the firm whose
+      // questionnaire originated the cert and firms that received cross-firm
+      // access via an approved access request.
+      const hasLiveGrant = !!inv.cert_id && inv.cert_status === 'active' && !!inv.cert_granted_at && !inv.cert_revoked_at;
+      // Step 4: surface "Expiring soon" / "Expired" alongside the portable
+      // badge so firms know when an investor's accreditation needs a refresh.
+      // Show expired when the cert has passed (or been marked) expired even if
+      // the grant is still attached, so the row reflects the practical state.
+      const expiryBadge = (() => {
+        if (!inv.cert_id) return '';
+        if (inv.cert_status === 'expired') return `<span class="expiry-tag expiry-tag-expired" title="Investor must renew">⚠ Expired</span>`;
+        if (inv.cert_status !== 'active' || !inv.cert_expires_at) return '';
+        const days = Math.ceil((new Date(inv.cert_expires_at + 'Z').getTime() - Date.now()) / (1000*60*60*24));
+        if (days <= 0) return `<span class="expiry-tag expiry-tag-expired" title="Investor must renew">⚠ Expired</span>`;
+        if (days <= 30) return `<span class="expiry-tag expiry-tag-soon" title="Expires ${new Date(inv.cert_expires_at + 'Z').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}">⚠ Expires in ${days}d</span>`;
+        return '';
+      })();
+      const certBadge = hasLiveGrant ? `
+        <div class="cert-tag" title="Portable certification record">
+          ✓ Certified via portable record
+          ${inv.cert_granted_at ? ` · granted ${new Date(inv.cert_granted_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}` : ''}
+          ${expiryBadge}
+        </div>` : '';
+
+      // For access-request invitations we link to the certified submission
+      // (which lives under whichever matter originally issued the cert).
+      const viewSubId = isAccessRequest ? inv.cert_submission_id : inv.submission_id;
+      const isFinal = inv.status === 'signed' || inv.status === 'completed' || inv.status === 'granted';
+
       return `
         <div class="investor-row">
           <div><input type="checkbox" class="row-check" data-id="${inv.id}" style="width:14px;height:14px;cursor:pointer;" ${isChecked ? 'checked' : ''}></div>
           <div>
-            <div style="font-weight:500;">${esc(inv.contact_name)}</div>
+            <div style="font-weight:500;">${esc(inv.contact_name)}${isAccessRequest ? ' <span style="font-size:10px;color:var(--text-muted);font-weight:400;text-transform:uppercase;letter-spacing:.05em;">· access request</span>' : ''}</div>
             ${inv.entity_name ? `<div style="font-size:11px;color:var(--text-muted);">${esc(inv.entity_name)}</div>` : ''}
+            ${certBadge}
           </div>
           <div style="color:var(--text-muted);">${esc(inv.contact_email)}</div>
-          <div><span class="status-badge status-${inv.status}">${statusLabel(inv.status)}</span></div>
+          <div><span class="status-badge status-${inv.status}">${statusLabel(inv.status, inv.type)}</span></div>
           <div style="color:var(--text-muted);font-size:12px;">${dateStr}</div>
           <div style="display:flex;gap:8px;justify-content:flex-end;">
-            ${inv.submission_id && (inv.status === 'signed' || inv.status === 'completed')
-              ? `<a href="/receipt.html?id=${inv.submission_id}" class="btn btn-outline" style="font-size:12px;padding:5px 12px;">View PDF</a>`
+            ${viewSubId && isFinal
+              ? `<a href="/receipt.html?id=${viewSubId}" class="btn btn-outline" style="font-size:12px;padding:5px 12px;">View PDF</a>`
               : ''}
-            ${inv.submission_id
-              ? `<a href="/questionnaire.html?id=${inv.submission_id}" class="btn btn-ghost" style="font-size:12px;padding:5px 12px;">${inv.status === 'signed' || inv.status === 'completed' ? 'Edit' : 'View'}</a>`
+            ${viewSubId
+              ? `<a href="/questionnaire.html?id=${viewSubId}" class="btn btn-ghost" style="font-size:12px;padding:5px 12px;">${isFinal ? (isAccessRequest ? 'View' : 'Edit') : 'View'}</a>`
               : ''}
-            <button class="btn btn-outline resend-btn" data-id="${inv.id}" style="font-size:12px;padding:5px 12px;">Resend</button>
+            ${!isAccessRequest ? `<button class="btn btn-outline resend-btn" data-id="${inv.id}" style="font-size:12px;padding:5px 12px;">Resend</button>` : ''}
           </div>
         </div>
       `;
@@ -349,36 +393,102 @@
   });
   document.getElementById('cancel-contact-btn').addEventListener('click', closeContactModal);
 
-  document.getElementById('save-contact-btn').addEventListener('click', async () => {
+  // Email-driven cert lookup: when the email field looks valid, ask the server
+  // whether it maps to an investor account with an active portable certification.
+  // If yes, surface a "Request Portable Access" button alongside the regular
+  // "Add & Send Invitation" so the firm can skip the full questionnaire.
+  let certLookupTimer = null;
+  let lastCertLookup = null;
+  document.getElementById('c-email').addEventListener('input', () => {
+    clearTimeout(certLookupTimer);
+    certLookupTimer = setTimeout(runCertLookup, 350);
+  });
+
+  async function runCertLookup() {
+    const email = document.getElementById('c-email').value.trim();
+    const hint = document.getElementById('cert-hint');
+    const reqBtn = document.getElementById('request-access-btn');
+    lastCertLookup = null;
+    hint.style.display = 'none';
+    reqBtn.style.display = 'none';
+    if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return;
+
+    try {
+      const r = await fetch('/api/contacts/lookup-cert', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ email }),
+      });
+      if (!r.ok) return;
+      const d = await r.json();
+      lastCertLookup = d;
+      if (d.has_active_cert) {
+        const date = d.certified_at ? new Date(d.certified_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '';
+        if (d.already_granted) {
+          hint.textContent = `✓ ${d.account_name} already shares an active certification with your firm (certified ${date}). A new questionnaire isn't required.`;
+          hint.style.display = 'block';
+        } else {
+          hint.textContent = `${d.account_name} has an active certification (certified ${date}). You can request portable access instead of sending a new questionnaire.`;
+          hint.style.display = 'block';
+          reqBtn.style.display = '';
+        }
+      }
+    } catch { /* ignore */ }
+  }
+
+  document.getElementById('save-contact-btn').addEventListener('click', () => sendInvitation('questionnaire'));
+  document.getElementById('request-access-btn').addEventListener('click', () => sendInvitation('access_request'));
+
+  async function sendInvitation(kind) {
     const name = document.getElementById('c-name').value.trim();
     const email = document.getElementById('c-email').value.trim();
     const entity = document.getElementById('c-entity').value.trim();
     if (!name || !email) { showContactAlert('Name and email are required.'); return; }
 
-    const btn = document.getElementById('save-contact-btn');
-    btn.disabled = true; btn.textContent = 'Sending…';
+    const saveBtn = document.getElementById('save-contact-btn');
+    const reqBtn = document.getElementById('request-access-btn');
+    saveBtn.disabled = true; reqBtn.disabled = true;
+    if (kind === 'access_request') reqBtn.textContent = 'Sending…';
+    else saveBtn.textContent = 'Sending…';
 
-    // Create contact
     const cRes = await fetch('/api/contacts', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name, email, entity_name: entity }) });
-    if (!cRes.ok) { const d=await cRes.json(); showContactAlert(d.error); btn.disabled=false; btn.textContent='Add & Send Invitation'; return; }
+    if (!cRes.ok) {
+      const d = await cRes.json(); showContactAlert(d.error);
+      saveBtn.disabled = false; reqBtn.disabled = false;
+      saveBtn.textContent = 'Add & Send Invitation'; reqBtn.textContent = 'Request Portable Access';
+      return;
+    }
     const contact = await cRes.json();
 
-    // Send invitation
-    const iRes = await fetch(`/api/matters/${MATTER_ID}/invite`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ contact_id: contact.id }) });
+    const path = kind === 'access_request'
+      ? `/api/matters/${MATTER_ID}/request-access`
+      : `/api/matters/${MATTER_ID}/invite`;
+    const iRes = await fetch(path, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ contact_id: contact.id }) });
     const iData = await iRes.json();
-    btn.disabled = false; btn.textContent = 'Add & Send Invitation';
+
+    saveBtn.disabled = false; reqBtn.disabled = false;
+    saveBtn.textContent = 'Add & Send Invitation'; reqBtn.textContent = 'Request Portable Access';
+
+    if (!iRes.ok) { showContactAlert(iData.error || 'Failed to send.'); return; }
 
     closeContactModal();
     await loadMatter();
 
-    if (iData.link) showLinkModal(iData.link);
-    else showBanner('Investor added and invitation sent.', 'success');
-  });
+    if (kind === 'access_request') {
+      showBanner('Access request sent. The investor will see it in their portal.', 'success');
+    } else if (iData.link) {
+      showLinkModal(iData.link);
+    } else {
+      showBanner('Investor added and invitation sent.', 'success');
+    }
+  }
 
   function closeContactModal() {
     document.getElementById('contact-modal').style.display = 'none';
     document.getElementById('contact-alert').style.display = 'none';
+    document.getElementById('cert-hint').style.display = 'none';
+    document.getElementById('request-access-btn').style.display = 'none';
     ['c-name','c-email','c-entity'].forEach(id => document.getElementById(id).value = '');
+    lastCertLookup = null;
   }
   function showContactAlert(msg) {
     const el = document.getElementById('contact-alert');

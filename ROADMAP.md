@@ -60,27 +60,29 @@ Investor entities carry data forward between firms and across questionnaires.
 
 ---
 
-## Step 3 — Cross-Firm Portability (the value prop)
+## Step 3 — Cross-Firm Portability (the value prop) ✅
 
 Decouple "is this investor certified?" from "did they fill out our firm's form?"
 
-- `certifications` table: `(id, investor_account_id, submission_id, certified_at, expires_at, status)`. One canonical record per investor entity per certification cycle.
-- On `submission.signed`, upsert a `certification` row.
-- `certification_access_grants` table: `(certification_id, firm_id, granted_at, revoked_at)`. Investors decide who can see what.
-- New invitation type: **access request** instead of full questionnaire. Firm asks → investor approves → firm sees existing certified submission.
-- `/investor/certifications.html` — investor sees all certifications, all firms with access, can revoke.
-- Firm-side: existing matter detail page learns to show "✓ Certified via portable record (granted 2026-04-12)" badges.
+- [x] `certifications` table: `(id, investor_account_id, submission_id, certified_at, expires_at, status)`. One canonical record per investor entity per certification cycle. Statuses: `active | superseded | revoked | expired`.
+- [x] On `submission.signed`, mint a certification row (one per submission). Prior active certs for the same account are marked `superseded`, and any active grants on those prior certs are carried forward onto the new cert so firms the investor previously trusted don't silently lose visibility on re-signing. The firm whose matter prompted the signing is auto-granted.
+- [x] `certification_access_grants` table: `(id, certification_id, firm_id, granted_at, revoked_at)`. Unique on `(certification_id, firm_id)`. Investors revoke from `/investor-certifications.html`.
+- [x] New invitation type: `invitations.type = 'access_request'`. Firm calls `POST /api/matters/:id/request-access` when a contact's email maps to an investor account with an active cert; investor sees a Pending Requests section on `/investor-certifications.html` and can approve or deny. Approval creates a grant and marks the invitation `granted` (also stamps `invitations.certification_id` so the firm can pivot to the underlying submission).
+- [x] Read-through on `GET /api/submissions/:id`: a firm with a live grant on a cert can read the underlying questionnaire even though it lives under another firm's matter.
+- [x] `/investor-certifications.html` — investor sees all certifications, status, all firms with active grants, revoked-grants history, and pending access requests with approve/deny. Linked from `/investor-dashboard.html` and the investor nav.
+- [x] Firm side: `matter.html` shows `✓ Certified via portable record · granted YYYY-MM-DD` on rows backed by an active grant. The Add-Investor modal calls `POST /api/contacts/lookup-cert` while the email field is being typed and surfaces a "Request Portable Access" button when the email maps to an investor account with an active cert and no current grant.
 
 ---
 
-## Step 4 — Certification Lifecycle & Expiry
+## Step 4 — Certification Lifecycle & Expiry ✅
 
 Polish layer: keep certifications fresh.
 
-- `expires_at` defaults to certified_at + 1 year.
-- Background job (cron or startup-scheduled) emails investors 30 days before expiry.
-- `⚠ Expiring soon` and `⚠ Expired` badges on firm-side matter views.
-- Investor-initiated renewal: creates a new submission pre-populated from the most recent signed one.
+- [x] `expires_at` is set to `certified_at + 1 year` whenever a cert is minted (`issueCertificationForSubmission`). On re-sign of an existing submission the expiry is reset and `expiry_reminder_sent_at` is cleared so the next-cycle reminder can fire again.
+- [x] Idempotent migration in `database.js` backfills `expires_at = certified_at + 1 year` for any pre-existing certs that had a NULL value, plus a new `certifications.expiry_reminder_sent_at` column.
+- [x] `runCertExpirySweep()` runs 5s after startup and every 24 hours: marks certs past `expires_at` as `expired`, and emails the account admin once per cert when expiry is within 30 days (`buildExpiryReminderEmail`). Idempotent — gated on `expiry_reminder_sent_at`.
+- [x] Firm-side `matter.html` shows `⚠ Expiring soon` and `⚠ Expired` badges next to the Certified-via-portable-record tag, fed by `cert.expires_at` newly returned by `GET /api/matters/:id`.
+- [x] Investor-initiated renewal: `POST /api/investor/certifications/:id/renew` clones the underlying questionnaire of the prior signed submission into a new draft linked to the investor account, stages a guest session, and returns a redirect URL into `/questionnaire.html`. On signing, the standard cert-mint path supersedes the prior cert and rolls forward existing grants — firms with current access keep it. `/investor-certifications.html` exposes a Renew button on active and expired certs.
 
 ---
 

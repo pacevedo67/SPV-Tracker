@@ -539,6 +539,207 @@ app.delete('/api/investor/team/:id', requireInvestorAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Certifications & access grants (Step 3) ────────────────────────────
+// Investors see every certification on their account, every firm with access
+// to each, and any pending access requests from firms. Admins and designees
+// can both view; for v1 either can grant or revoke (designees act on the
+// account's behalf, same as questionnaire signing).
+
+app.get('/api/investor/certifications', requireInvestorAuth, (req, res) => {
+  const accountId = req.investor.investorAccountId;
+  const certs = db.prepare(`
+    SELECT c.id, c.submission_id, c.certified_at, c.expires_at, c.status,
+           qs.signature_name, qs.signed_at,
+           inv.id as invitation_id,
+           m.name as matter_name,
+           f.name as issued_via_firm_name
+    FROM certifications c
+    JOIN questionnaire_submissions qs ON qs.id = c.submission_id
+    LEFT JOIN invitations inv ON inv.id = qs.invitation_id
+    LEFT JOIN matters m ON m.id = inv.matter_id
+    LEFT JOIN firms f ON f.id = m.firm_id
+    WHERE c.investor_account_id=?
+    ORDER BY c.certified_at DESC
+  `).all(accountId);
+
+  for (const c of certs) {
+    c.grants = db.prepare(`
+      SELECT g.id, g.firm_id, g.granted_at, g.revoked_at, f.name as firm_name
+      FROM certification_access_grants g
+      JOIN firms f ON f.id = g.firm_id
+      WHERE g.certification_id=?
+      ORDER BY g.granted_at DESC
+    `).all(c.id);
+  }
+
+  // Pending access requests: invitations of type=access_request whose contact
+  // email matches a member of this investor account and which haven't yet
+  // been decided.
+  const pendingRequests = db.prepare(`
+    SELECT i.id as invitation_id, i.sent_at, i.status,
+           ic.email as contact_email, ic.name as contact_name,
+           m.id as matter_id, m.name as matter_name,
+           f.id as firm_id, f.name as firm_name,
+           u.full_name as sent_by_name
+    FROM invitations i
+    JOIN investor_contacts ic ON ic.id = i.investor_contact_id
+    JOIN matters m ON m.id = i.matter_id
+    JOIN firms f ON f.id = m.firm_id
+    JOIN users u ON u.id = i.sent_by
+    WHERE i.type='access_request'
+      AND i.status IN ('sent','opened')
+      AND lower(ic.email) IN (
+        SELECT lower(email) FROM investor_users WHERE investor_account_id=?
+      )
+    ORDER BY i.sent_at DESC
+  `).all(accountId);
+
+  res.json({ certifications: certs, pending_requests: pendingRequests });
+});
+
+// Step 4: investor-initiated renewal. Clones the underlying questionnaire of
+// the most recent signed submission for this account into a new draft, links
+// it to the investor account, and stages a guest session so the questionnaire
+// UI can open it. On signing, issueCertificationForSubmission supersedes the
+// old cert and carries existing grants forward — so trusted firms keep access.
+app.post('/api/investor/certifications/:id/renew', requireInvestorAuth, (req, res) => {
+  const accountId = req.investor.investorAccountId;
+  const cert = db.prepare(`
+    SELECT c.*, qs.general_info, qs.investment_info,
+           qs.category_ii, qs.category_iii, qs.category_iv, qs.category_v
+    FROM certifications c
+    JOIN questionnaire_submissions qs ON qs.id = c.submission_id
+    WHERE c.id=? AND c.investor_account_id=?
+  `).get(req.params.id, accountId);
+  if (!cert) return res.status(404).json({ error: 'Certification not found' });
+
+  // Avoid creating duplicate in-flight renewals: if there is already an
+  // unsigned, investor-initiated draft on this account, hand that one back.
+  let draft = db.prepare(`
+    SELECT id FROM questionnaire_submissions
+    WHERE investor_account_id=? AND invitation_id IS NULL
+      AND status IN ('draft','in_progress')
+    ORDER BY updated_at DESC LIMIT 1
+  `).get(accountId);
+
+  let subId;
+  if (draft) {
+    subId = draft.id;
+  } else {
+    subId = uuidv4();
+    db.prepare(`
+      INSERT INTO questionnaire_submissions
+        (id, status, investor_account_id, investor_user_id,
+         general_info, investment_info, category_ii, category_iii, category_iv, category_v)
+      VALUES (?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      subId, accountId, req.investor.investorUserId,
+      cert.general_info, cert.investment_info,
+      cert.category_ii, cert.category_iii, cert.category_iv, cert.category_v
+    );
+  }
+
+  req.session.guestSubId = subId;
+  req.session.guestContactName = req.investor.full_name;
+  req.session.guestToken = null;
+
+  res.json({ ok: true, submission_id: subId, redirect: `/questionnaire.html?id=${subId}&guest=1` });
+});
+
+app.delete('/api/investor/certifications/grants/:grantId', requireInvestorAuth, (req, res) => {
+  const accountId = req.investor.investorAccountId;
+  const grant = db.prepare(`
+    SELECT g.* FROM certification_access_grants g
+    JOIN certifications c ON c.id = g.certification_id
+    WHERE g.id=? AND c.investor_account_id=?
+  `).get(req.params.grantId, accountId);
+  if (!grant) return res.status(404).json({ error: 'Grant not found' });
+  if (grant.revoked_at) return res.status(400).json({ error: 'Already revoked' });
+
+  db.prepare(`UPDATE certification_access_grants SET revoked_at=CURRENT_TIMESTAMP WHERE id=?`)
+    .run(req.params.grantId);
+  res.json({ ok: true });
+});
+
+// Approve an access request. Creates (or unrevokes) a grant on the
+// investor's most recent active certification and marks the invitation
+// 'granted' so the firm sees the result on its matter detail.
+app.post('/api/investor/access-requests/:invId/approve', requireInvestorAuth, (req, res) => {
+  const accountId = req.investor.investorAccountId;
+  const inv = db.prepare(`
+    SELECT i.*, ic.email as contact_email, m.firm_id
+    FROM invitations i
+    JOIN investor_contacts ic ON ic.id = i.investor_contact_id
+    JOIN matters m ON m.id = i.matter_id
+    WHERE i.id=? AND i.type='access_request'
+  `).get(req.params.invId);
+  if (!inv) return res.status(404).json({ error: 'Request not found' });
+
+  // Gate: the request must be addressed to a member of this investor account.
+  const matched = db.prepare(`
+    SELECT 1 FROM investor_users
+    WHERE investor_account_id=? AND lower(email)=lower(?)
+  `).get(accountId, inv.contact_email);
+  if (!matched) return res.status(403).json({ error: 'Request is for a different account' });
+
+  if (!['sent','opened'].includes(inv.status)) {
+    return res.status(400).json({ error: 'Request already decided' });
+  }
+
+  const cert = db.prepare(`
+    SELECT id FROM certifications
+    WHERE investor_account_id=? AND status='active'
+    ORDER BY certified_at DESC LIMIT 1
+  `).get(accountId);
+  if (!cert) return res.status(400).json({ error: 'No active certification on this account' });
+
+  const existing = db.prepare(`
+    SELECT id FROM certification_access_grants WHERE certification_id=? AND firm_id=?
+  `).get(cert.id, inv.firm_id);
+  if (existing) {
+    db.prepare(`UPDATE certification_access_grants SET revoked_at=NULL, granted_at=CURRENT_TIMESTAMP WHERE id=?`)
+      .run(existing.id);
+  } else {
+    db.prepare(`
+      INSERT INTO certification_access_grants (id, certification_id, firm_id)
+      VALUES (?, ?, ?)
+    `).run(uuidv4(), cert.id, inv.firm_id);
+  }
+
+  db.prepare(`
+    UPDATE invitations
+    SET status='granted', certification_id=?, completed_at=CURRENT_TIMESTAMP
+    WHERE id=?
+  `).run(cert.id, inv.id);
+
+  res.json({ ok: true });
+});
+
+app.post('/api/investor/access-requests/:invId/deny', requireInvestorAuth, (req, res) => {
+  const accountId = req.investor.investorAccountId;
+  const inv = db.prepare(`
+    SELECT i.*, ic.email as contact_email
+    FROM invitations i
+    JOIN investor_contacts ic ON ic.id = i.investor_contact_id
+    WHERE i.id=? AND i.type='access_request'
+  `).get(req.params.invId);
+  if (!inv) return res.status(404).json({ error: 'Request not found' });
+
+  const matched = db.prepare(`
+    SELECT 1 FROM investor_users
+    WHERE investor_account_id=? AND lower(email)=lower(?)
+  `).get(accountId, inv.contact_email);
+  if (!matched) return res.status(403).json({ error: 'Request is for a different account' });
+
+  if (!['sent','opened'].includes(inv.status)) {
+    return res.status(400).json({ error: 'Request already decided' });
+  }
+
+  db.prepare(`UPDATE invitations SET status='denied', completed_at=CURRENT_TIMESTAMP WHERE id=?`)
+    .run(inv.id);
+  res.json({ ok: true });
+});
+
 // Change password (requires current password)
 app.post('/api/change-password', requireAuth, async (req, res) => {
   const { currentPassword, newPassword } = req.body;
@@ -705,14 +906,25 @@ app.get('/api/matters/:id', requireAuth, (req, res) => {
   const invitations = db.prepare(`
     SELECT i.*, ic.name as contact_name, ic.email as contact_email, ic.entity_name,
            u.full_name as sent_by_name,
-           qs.id as submission_id, qs.status as submission_status
+           qs.id as submission_id, qs.status as submission_status,
+           cert.id as cert_id, cert.certified_at as cert_certified_at,
+           cert.status as cert_status, cert.submission_id as cert_submission_id,
+           cert.expires_at as cert_expires_at,
+           grant_row.granted_at as cert_granted_at,
+           grant_row.revoked_at as cert_revoked_at
     FROM invitations i
     JOIN investor_contacts ic ON i.investor_contact_id = ic.id
     JOIN users u ON i.sent_by = u.id
     LEFT JOIN questionnaire_submissions qs ON qs.invitation_id = i.id
+    LEFT JOIN certifications cert
+      ON cert.id = COALESCE(i.certification_id,
+                            (SELECT cert2.id FROM certifications cert2
+                             WHERE cert2.submission_id = qs.id))
+    LEFT JOIN certification_access_grants grant_row
+      ON grant_row.certification_id = cert.id AND grant_row.firm_id = ?
     WHERE i.matter_id=?
     ORDER BY i.sent_at DESC
-  `).all(req.params.id);
+  `).all(req.user.firmId, req.params.id);
   res.json({ ...matter, invitations });
 });
 
@@ -805,6 +1017,110 @@ app.post('/api/matters/:id/invite', requireAuth, async (req, res) => {
   }
 });
 
+// Step 3: firm asks an investor to grant access to an existing portable cert
+// instead of filling out a fresh questionnaire. Only valid when the contact's
+// email matches a member of an investor_account that has an active cert.
+// Idempotent on (matter, contact): if a prior questionnaire invitation exists
+// it gets converted to an access_request and re-sent.
+app.post('/api/matters/:id/request-access', requireAuth, async (req, res) => {
+  const user = db.prepare('SELECT * FROM users WHERE id=?').get(req.user.userId);
+  const matter = db.prepare('SELECT * FROM matters WHERE id=? AND firm_id=?').get(req.params.id, req.user.firmId);
+  if (!matter) return res.status(404).json({ error: 'Matter not found' });
+
+  const { contact_id } = req.body;
+  if (!contact_id) return res.status(400).json({ error: 'contact_id required' });
+  const contact = db.prepare('SELECT * FROM investor_contacts WHERE id=? AND firm_id=?').get(contact_id, req.user.firmId);
+  if (!contact) return res.status(404).json({ error: 'Contact not found' });
+
+  const investorUser = db.prepare(`
+    SELECT iu.*, ia.id as account_id, ia.name as account_name
+    FROM investor_users iu
+    JOIN investor_accounts ia ON ia.id = iu.investor_account_id
+    WHERE lower(iu.email) = lower(?)
+  `).get(contact.email);
+  if (!investorUser) return res.status(400).json({ error: 'No investor account is registered to that email yet.' });
+
+  const cert = db.prepare(`
+    SELECT id FROM certifications
+    WHERE investor_account_id=? AND status='active'
+    ORDER BY certified_at DESC LIMIT 1
+  `).get(investorUser.account_id);
+  if (!cert) return res.status(400).json({ error: 'That investor has no active certification yet.' });
+
+  const firm = db.prepare('SELECT * FROM firms WHERE id=?').get(req.user.firmId);
+  const token = makeInviteToken(contact.name);
+  const invId = uuidv4();
+
+  const existing = db.prepare('SELECT * FROM invitations WHERE matter_id=? AND investor_contact_id=?').get(req.params.id, contact_id);
+  if (existing) {
+    db.prepare(`
+      UPDATE invitations SET token=?, type='access_request', status='sent',
+        sent_at=CURRENT_TIMESTAMP, sent_by=?, certification_id=NULL, completed_at=NULL
+      WHERE id=?
+    `).run(token, req.user.userId, existing.id);
+  } else {
+    db.prepare(`
+      INSERT INTO invitations (id, matter_id, investor_contact_id, sent_by, token, type, status)
+      VALUES (?, ?, ?, ?, ?, 'access_request', 'sent')
+    `).run(invId, req.params.id, contact_id, req.user.userId, token);
+  }
+  const invitationId = existing ? existing.id : invId;
+
+  const html = buildAccessRequestEmail({
+    contactName: contact.name,
+    senderName: user.full_name,
+    firmName: firm.name,
+    matterName: matter.name,
+    accountName: investorUser.account_name,
+    portalUrl: `${BASE_URL}/investor-certifications.html`,
+    invitationId,
+  });
+
+  try {
+    await sendEmail({
+      to: `${contact.name} <${contact.email}>`,
+      subject: `Access request — ${matter.name}`,
+      html,
+    });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('Email error:', e);
+    res.status(500).json({ error: 'Failed to send email' });
+  }
+});
+
+// Lets the firm-side "Add Investor" flow learn whether the email already maps
+// to an investor account with an active portable cert — so the UI can offer
+// "Request access" alongside the existing "Send questionnaire" option.
+app.post('/api/contacts/lookup-cert', requireAuth, (req, res) => {
+  const { email } = req.body || {};
+  if (!email) return res.status(400).json({ error: 'email required' });
+  const investorUser = db.prepare(`
+    SELECT iu.investor_account_id, ia.name as account_name
+    FROM investor_users iu
+    JOIN investor_accounts ia ON ia.id = iu.investor_account_id
+    WHERE lower(iu.email)=lower(?)
+  `).get(email.trim());
+  if (!investorUser) return res.json({ has_account: false });
+
+  const cert = db.prepare(`
+    SELECT c.id, c.certified_at,
+      (SELECT 1 FROM certification_access_grants g
+       WHERE g.certification_id=c.id AND g.firm_id=? AND g.revoked_at IS NULL) as already_granted
+    FROM certifications c
+    WHERE c.investor_account_id=? AND c.status='active'
+    ORDER BY c.certified_at DESC LIMIT 1
+  `).get(req.user.firmId, investorUser.investor_account_id);
+
+  res.json({
+    has_account: true,
+    account_name: investorUser.account_name,
+    has_active_cert: !!cert,
+    already_granted: !!cert?.already_granted,
+    certified_at: cert?.certified_at || null,
+  });
+});
+
 app.post('/api/invitations/:id/resend', requireAuth, async (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE id=?').get(req.user.userId);
   const inv = db.prepare(`
@@ -817,6 +1133,42 @@ app.post('/api/invitations/:id/resend', requireAuth, async (req, res) => {
   if (!inv || inv.firm_id !== req.user.firmId) return res.status(404).json({ error: 'Not found' });
 
   const firm = db.prepare('SELECT * FROM firms WHERE id=?').get(req.user.firmId);
+
+  // Access-request resend: same approval flow, just nudge the investor again.
+  // No new token needed (the investor uses the portal, not a /q/:token link).
+  if (inv.type === 'access_request') {
+    if (inv.status === 'granted' || inv.status === 'denied') {
+      return res.status(400).json({ error: 'Request already decided — cannot resend.' });
+    }
+    const account = db.prepare(`
+      SELECT ia.name FROM investor_accounts ia
+      JOIN investor_users iu ON iu.investor_account_id=ia.id
+      WHERE lower(iu.email)=lower(?)
+      LIMIT 1
+    `).get(inv.contact_email);
+
+    db.prepare(`UPDATE invitations SET status='sent', sent_at=CURRENT_TIMESTAMP, sent_by=? WHERE id=?`)
+      .run(req.user.userId, req.params.id);
+
+    const html = buildAccessRequestEmail({
+      contactName: inv.contact_name,
+      senderName: user.full_name,
+      firmName: firm.name,
+      matterName: inv.matter_name,
+      accountName: account?.name || inv.contact_name,
+      portalUrl: `${BASE_URL}/investor-certifications.html`,
+      invitationId: req.params.id,
+    });
+    try {
+      await sendEmail({ to: `${inv.contact_name} <${inv.contact_email}>`, subject: `Reminder: Access request — ${inv.matter_name}`, html });
+      res.json({ ok: true });
+    } catch (e) {
+      console.error('Email error:', e);
+      res.status(500).json({ error: 'Failed to send email' });
+    }
+    return;
+  }
+
   const newToken = makeInviteToken(inv.contact_name);
   db.prepare('UPDATE invitations SET token=?, status=?, sent_at=CURRENT_TIMESTAMP, sent_by=? WHERE id=?').run(newToken, 'sent', req.user.userId, req.params.id);
 
@@ -864,6 +1216,12 @@ app.get('/q/:token', (req, res) => {
 
   if (inv.status === 'sent') {
     db.prepare(`UPDATE invitations SET status='opened', opened_at=CURRENT_TIMESTAMP WHERE id=?`).run(inv.id);
+  }
+
+  // Access requests don't have a questionnaire — send the investor to the
+  // portal where they review and approve/deny pending requests.
+  if (inv.type === 'access_request') {
+    return res.redirect('/investor-certifications.html');
   }
 
   // Step 2C: if a logged-in investor's account has a member whose email matches
@@ -987,9 +1345,17 @@ app.get('/api/submissions/:id', optionalAuth, (req, res) => {
             JOIN matters m ON inv2.matter_id=m.id
             JOIN users u ON u.firm_id=m.firm_id
             WHERE u.id=?
+          ) OR
+          -- Firms with an active grant on the submission's certification can
+          -- read the underlying form even though it lives under another firm's
+          -- matter (Step 3: portable access).
+          s.id IN (
+            SELECT c.submission_id FROM certifications c
+            JOIN certification_access_grants g ON g.certification_id=c.id
+            WHERE g.firm_id=? AND g.revoked_at IS NULL
           )
         )
-      `).get(req.params.id, req.user.userId, req.user.userId)
+      `).get(req.params.id, req.user.userId, req.user.userId, req.user.firmId)
     : null;
 
   const byGuest = req.session.guestSubId === req.params.id
@@ -1138,8 +1504,164 @@ app.post('/api/submissions/:id/sign', optionalAuth, (req, res) => {
     db.prepare(`UPDATE invitations SET status='signed', completed_at=CURRENT_TIMESTAMP WHERE id=?`).run(sub.invitation_id);
   }
 
+  // Step 3: issue or refresh a portable certification for the investor account.
+  // We carry forward any active grants from the prior cert so firms the
+  // investor previously trusted don't silently lose visibility on re-signing.
+  if (sub.investor_account_id) {
+    issueCertificationForSubmission(sub);
+  }
+
   res.json({ ok: true });
 });
+
+// Mint a fresh certification for a signed submission. Marks any prior active
+// cert for the same investor account as 'superseded' and rolls active grants
+// from that prior cert onto the new one. Also auto-grants the firm whose
+// matter prompted the signing (if any) so the firm sees the result of the
+// questionnaire it requested.
+function issueCertificationForSubmission(sub) {
+  const accountId = sub.investor_account_id;
+  if (!accountId) return null;
+
+  // Determine the firm that prompted this signing, via the invitation chain.
+  let invitingFirmId = null;
+  if (sub.invitation_id) {
+    const row = db.prepare(`
+      SELECT m.firm_id FROM invitations i
+      JOIN matters m ON i.matter_id=m.id
+      WHERE i.id=?
+    `).get(sub.invitation_id);
+    invitingFirmId = row?.firm_id || null;
+  }
+
+  const priorCerts = db.prepare(`
+    SELECT id FROM certifications
+    WHERE investor_account_id=? AND status='active'
+  `).all(accountId);
+
+  // Snapshot the firms that had active grants on prior certs so we can
+  // re-grant them on the new one.
+  const carriedFirmIds = new Set();
+  for (const c of priorCerts) {
+    const grants = db.prepare(`
+      SELECT firm_id FROM certification_access_grants
+      WHERE certification_id=? AND revoked_at IS NULL
+    `).all(c.id);
+    for (const g of grants) carriedFirmIds.add(g.firm_id);
+  }
+
+  for (const c of priorCerts) {
+    db.prepare(`UPDATE certifications SET status='superseded' WHERE id=?`).run(c.id);
+  }
+
+  // One certification per signed submission. If the same submission gets
+  // re-signed (firm asked for revision), update the existing cert instead of
+  // creating a duplicate. expires_at = certified_at + 1 year (Step 4); reset
+  // the reminder flag so the sweeper can warn again as the new expiry nears.
+  const existing = db.prepare(`SELECT id FROM certifications WHERE submission_id=?`).get(sub.id);
+  let certId;
+  if (existing) {
+    certId = existing.id;
+    db.prepare(`
+      UPDATE certifications
+      SET investor_account_id=?,
+          certified_at=CURRENT_TIMESTAMP,
+          expires_at=datetime(CURRENT_TIMESTAMP, '+1 year'),
+          status='active',
+          expiry_reminder_sent_at=NULL
+      WHERE id=?
+    `).run(accountId, certId);
+  } else {
+    certId = uuidv4();
+    db.prepare(`
+      INSERT INTO certifications (id, investor_account_id, submission_id, certified_at, expires_at, status)
+      VALUES (?, ?, ?, CURRENT_TIMESTAMP, datetime(CURRENT_TIMESTAMP, '+1 year'), 'active')
+    `).run(certId, accountId, sub.id);
+  }
+
+  if (invitingFirmId) carriedFirmIds.add(invitingFirmId);
+
+  for (const firmId of carriedFirmIds) {
+    db.prepare(`
+      INSERT OR IGNORE INTO certification_access_grants (id, certification_id, firm_id)
+      VALUES (?, ?, ?)
+    `).run(uuidv4(), certId, firmId);
+  }
+
+  return certId;
+}
+
+// ── Step 4: Certification expiry sweeper ──
+// Runs once on startup and then every 24 hours. Two responsibilities:
+//   1) Mark active certs whose expires_at has passed as 'expired'.
+//   2) Email the investor account 30 days before expiry, once per cert
+//      (gated by expiry_reminder_sent_at so a daily run can't re-spam).
+// Idempotent — safe to call as often as desired.
+const EXPIRY_REMINDER_WINDOW_DAYS = 30;
+const SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
+async function runCertExpirySweep() {
+  try {
+    const expiredRows = db.prepare(`
+      SELECT id FROM certifications
+      WHERE status='active' AND expires_at IS NOT NULL AND expires_at <= CURRENT_TIMESTAMP
+    `).all();
+    if (expiredRows.length) {
+      const stmt = db.prepare(`UPDATE certifications SET status='expired' WHERE id=?`);
+      for (const r of expiredRows) stmt.run(r.id);
+      console.log(`[expiry-sweep] marked ${expiredRows.length} certification(s) expired`);
+    }
+
+    // Reminders: certs that are still active, due to expire within the window,
+    // and have not already had a reminder sent. We email the account admin
+    // (one row per account in case there are multiple certs — though in
+    // practice only one is active at a time per account).
+    const dueRows = db.prepare(`
+      SELECT c.id as cert_id, c.expires_at, c.investor_account_id,
+             ia.name as account_name
+      FROM certifications c
+      JOIN investor_accounts ia ON ia.id = c.investor_account_id
+      WHERE c.status='active'
+        AND c.expires_at IS NOT NULL
+        AND c.expiry_reminder_sent_at IS NULL
+        AND c.expires_at <= datetime(CURRENT_TIMESTAMP, '+${EXPIRY_REMINDER_WINDOW_DAYS} days')
+        AND c.expires_at >  CURRENT_TIMESTAMP
+    `).all();
+
+    for (const row of dueRows) {
+      const admin = db.prepare(`
+        SELECT email, full_name FROM investor_users
+        WHERE investor_account_id=? AND role='admin' LIMIT 1
+      `).get(row.investor_account_id);
+      if (!admin) continue;
+
+      const daysLeft = Math.max(1, Math.ceil(
+        (new Date(row.expires_at + 'Z').getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+      ));
+
+      try {
+        await sendEmail({
+          to: `${admin.full_name} <${admin.email}>`,
+          subject: `Your accreditation expires in ${daysLeft} day${daysLeft === 1 ? '' : 's'}`,
+          html: buildExpiryReminderEmail({
+            name: admin.full_name,
+            accountName: row.account_name,
+            expiresAt: row.expires_at,
+            daysLeft,
+            portalUrl: `${BASE_URL}/investor-certifications.html`,
+          }),
+        });
+        db.prepare(`UPDATE certifications SET expiry_reminder_sent_at=CURRENT_TIMESTAMP WHERE id=?`)
+          .run(row.cert_id);
+      } catch (e) {
+        console.error('[expiry-sweep] reminder email failed for', admin.email, e);
+      }
+    }
+    if (dueRows.length) console.log(`[expiry-sweep] sent ${dueRows.length} expiry reminder(s)`);
+  } catch (e) {
+    console.error('[expiry-sweep] error', e);
+  }
+}
 
 // ── Email templates ──
 function emailWrapper(body) {
@@ -1201,6 +1723,29 @@ function buildInviteEmail({ contactName, senderName, firmName, matterName, link,
     </table>
     <p style="margin:0 0 4px;font-size:12px;color:#94a3b8;">Or copy this link:</p>
     <p style="margin:0;font-size:12px;color:#2563eb;word-break:break-all;">${link}</p>
+    <img src="${BASE_URL}/track/open/${invitationId}" width="1" height="1" style="display:none;" alt="">
+  `);
+}
+
+function buildAccessRequestEmail({ contactName, senderName, firmName, matterName, accountName, portalUrl, invitationId }) {
+  return emailWrapper(`
+    <p style="margin:0 0 8px;font-size:15px;font-weight:600;color:#0f172a;">Hi ${contactName},</p>
+    <p style="margin:0 0 24px;font-size:14px;color:#475569;line-height:1.6;">
+      <strong>${senderName}</strong> at <strong>${firmName}</strong> is requesting access to your existing accreditation
+      certification for <strong>${accountName}</strong> (matter: <strong>${matterName}</strong>).
+      You can approve or decline from your investor portal — no new questionnaire required.
+    </p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+      <tr>
+        <td align="center">
+          <a href="${portalUrl}" style="display:inline-block;background:#2563eb;color:#ffffff;font-size:14px;font-weight:600;padding:12px 28px;border-radius:5px;text-decoration:none;">
+            Review Request →
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:0 0 4px;font-size:12px;color:#94a3b8;">Or copy this link:</p>
+    <p style="margin:0;font-size:12px;color:#2563eb;word-break:break-all;">${portalUrl}</p>
     <img src="${BASE_URL}/track/open/${invitationId}" width="1" height="1" style="display:none;" alt="">
   `);
 }
@@ -1274,6 +1819,30 @@ function buildDesigneeWelcomeEmail({ name, email, password, accountName, addedBy
   `);
 }
 
+function buildExpiryReminderEmail({ name, accountName, expiresAt, daysLeft, portalUrl }) {
+  const expiresDate = new Date(expiresAt + 'Z').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  return emailWrapper(`
+    <p style="margin:0 0 8px;font-size:15px;font-weight:600;color:#0f172a;">Hi ${name},</p>
+    <p style="margin:0 0 24px;font-size:14px;color:#475569;line-height:1.6;">
+      The accreditation certification on file for <strong>${accountName}</strong>
+      expires in <strong>${daysLeft} day${daysLeft === 1 ? '' : 's'}</strong> on
+      <strong>${expiresDate}</strong>. Renewing now keeps the firms you have already
+      shared with from losing access.
+    </p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+      <tr>
+        <td align="center">
+          <a href="${portalUrl}" style="display:inline-block;background:#2563eb;color:#ffffff;font-size:14px;font-weight:600;padding:12px 28px;border-radius:5px;text-decoration:none;">
+            Renew Certification →
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:0 0 4px;font-size:12px;color:#94a3b8;">Or copy this link:</p>
+    <p style="margin:0;font-size:12px;color:#2563eb;word-break:break-all;">${portalUrl}</p>
+  `);
+}
+
 function buildPasswordResetEmail(resetUrl) {
   return emailWrapper(`
     <p style="margin:0 0 8px;font-size:15px;font-weight:600;color:#0f172a;">Reset your password</p>
@@ -1300,4 +1869,9 @@ app.listen(PORT, () => {
   if (!smtpTransport) console.warn('⚠  SMTP not configured (SMTP_HOST/SMTP_USER/SMTP_PASS not set) — emails will be logged to console only.');
   if (!process.env.JWT_SECRET) console.warn('⚠  JWT_SECRET not set — using insecure dev default. Set it before deploying.');
   if (!IS_PROD) console.log('   Running in development mode.');
+
+  // Step 4: kick off the certification expiry sweeper. Delay the first run
+  // briefly so startup-only DB seeding finishes; then repeat every 24 hours.
+  setTimeout(() => { runCertExpirySweep(); }, 5000);
+  setInterval(runCertExpirySweep, SWEEP_INTERVAL_MS);
 });
