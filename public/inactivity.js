@@ -2,10 +2,19 @@
  * Inactivity auto-logout
  * Logs out after TIMEOUT_MS of no user activity.
  * Shows a warning modal WARN_BEFORE_MS before logout.
+ *
+ * Auto-detects whether the page is a firm session (default) or an investor
+ * session (URL path beginning with /investor) and routes the logout call and
+ * post-logout redirect accordingly. Both endpoints denylist the JTI server-
+ * side, so a stale tab cannot be revived just by going back in history.
  */
 (function () {
   const TIMEOUT_MS    = 30 * 60 * 1000; // 30 minutes
   const WARN_BEFORE_MS = 2  * 60 * 1000; //  2 minutes before logout
+
+  const IS_INVESTOR_PAGE = /^\/investor(?:-|\.html|\/|$)/.test(location.pathname);
+  const LOGOUT_URL = IS_INVESTOR_PAGE ? '/api/investor/logout' : '/api/logout';
+  const REDIRECT_URL = IS_INVESTOR_PAGE ? '/investor.html' : '/';
 
   let logoutTimer;
   let warnTimer;
@@ -124,10 +133,10 @@
   // --- Logout ---------------------------------------------------------------
   async function doLogout() {
     try {
-      await fetch('/api/logout', { method: 'POST' });
+      await fetch(LOGOUT_URL, { method: 'POST', credentials: 'include' });
     } catch (_) {
       // proceed to redirect regardless
     }
-    window.location.href = '/';
+    window.location.href = REDIRECT_URL;
   }
 })();
