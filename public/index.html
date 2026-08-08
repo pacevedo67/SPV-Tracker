@@ -89,16 +89,19 @@
 </div>
 
 <script>
-  // SSO: if arriving from LB or DT with a token, exchange it for an SPV session
+  // SSO: if arriving from LB or DT with a one-time code (or legacy token),
+  // exchange it for an SPV session
   (async function() {
     const p = new URLSearchParams(location.search);
+    const code = p.get('sso_code');
+    const from = p.get('sso_from');
     const t = p.get('token');
-    if (!t) return;
-    p.delete('token');
+    if (!code && !t) return;
+    p.delete('sso_code'); p.delete('sso_from'); p.delete('token');
     history.replaceState({}, '', location.pathname + (p.toString() ? '?' + p : ''));
     const res = await fetch('/api/auth/exchange', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: t }),
+      body: JSON.stringify(code ? { code, from } : { token: t }),
     });
     if (res.ok) window.location.href = '/dashboard.html';
   })();

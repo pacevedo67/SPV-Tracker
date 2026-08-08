@@ -118,6 +118,44 @@ function getInvestorTokenFromRequest(req) {
   return null;
 }
 
+// ── SSO one-time codes ──
+// Cross-app sign-on: instead of passing a long-lived JWT in the URL, the
+// source app mints a short-lived single-use code, sends the user to the
+// sibling app with ?sso_code=...&sso_from=..., and the sibling redeems it
+// server-to-server at the source's /api/auth/sso-redeem to learn who the
+// user is. Codes are stored hashed, expire in 60s, and burn on first use.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS sso_codes (
+    code_hash  TEXT PRIMARY KEY,
+    email      TEXT NOT NULL,
+    name       TEXT,
+    expires_at INTEGER NOT NULL,
+    used       INTEGER DEFAULT 0
+  )
+`);
+const SSO_CODE_TTL_MS = 60 * 1000;
+
+function mintSsoCode(email, name) {
+  const code = crypto.randomBytes(32).toString('base64url');
+  const hash = crypto.createHash('sha256').update(code).digest('hex');
+  db.prepare('INSERT INTO sso_codes (code_hash, email, name, expires_at) VALUES (?, ?, ?, ?)')
+    .run(hash, email, name || '', Date.now() + SSO_CODE_TTL_MS);
+  return code;
+}
+
+function redeemSsoCode(code) {
+  if (typeof code !== 'string' || !code) return null;
+  const hash = crypto.createHash('sha256').update(code).digest('hex');
+  const row = db.prepare('SELECT * FROM sso_codes WHERE code_hash = ?').get(hash);
+  if (!row || row.used || row.expires_at < Date.now()) return null;
+  db.prepare('UPDATE sso_codes SET used = 1 WHERE code_hash = ?').run(hash);
+  return { email: row.email, name: row.name || '' };
+}
+
+setInterval(() => {
+  try { db.prepare('DELETE FROM sso_codes WHERE used = 1 OR expires_at < ?').run(Date.now()); } catch(e) {}
+}, 60 * 60 * 1000);
+
 // ── Email via SMTP (nodemailer) ──
 const FROM_ADDRESS = process.env.SMTP_FROM || 'SPV Tracker <noreply@example.com>';
 
@@ -305,26 +343,56 @@ app.get('/api/auth/me', requireAuth, (req, res) => {
   res.json({ email: req.user.email, full_name: req.user.full_name });
 });
 
-// SSO exchange — accept a token from LB or DT, verify it, issue an SPV session
+// Mint a one-time sign-on code for switching to a sibling app (LB / DT).
+app.post('/api/auth/sso-code', requireAuth, (req, res) => {
+  res.json({ code: mintSsoCode(req.user.email, req.user.full_name) });
+});
+
+// Redeem a code this app minted — called server-to-server by the sibling app.
+// The code itself is the credential: 256-bit random, 60s TTL, single use.
+app.post('/api/auth/sso-redeem', (req, res) => {
+  const identity = redeemSsoCode(req.body?.code);
+  if (!identity) return res.status(401).json({ error: 'Invalid or expired sign-on code' });
+  res.json({ email: identity.email, full_name: identity.name });
+});
+
+// SSO exchange — accept a one-time code (preferred) or a legacy token from
+// LB or DT, verify it with the issuing app, and issue an SPV session
 app.post('/api/auth/exchange', async (req, res) => {
-  const { token } = req.body;
-  if (!token) return res.status(400).json({ error: 'token required' });
+  const { token, code, from } = req.body;
+  if (!token && !code) return res.status(400).json({ error: 'code or token required' });
   let email, full_name;
-  for (const url of [LB_URL, DT_URL]) {
+  // Order the siblings so the named source is tried first
+  const bases = from === 'dt' ? [DT_URL, LB_URL] : [LB_URL, DT_URL];
+  for (const url of bases) {
     try {
-      const r = await fetch(`${url}/api/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(5000),
-      });
-      if (r.ok) {
-        const d = await r.json();
-        email     = (d.email || d.user?.email)?.toLowerCase().trim();
-        full_name = d.full_name || d.name || d.user?.name || email;
-        break;
+      if (code) {
+        const r = await fetch(`${url}/api/auth/sso-redeem`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code }),
+          signal: AbortSignal.timeout(5000),
+        });
+        if (r.ok) {
+          const d = await r.json();
+          email     = d.email?.toLowerCase().trim();
+          full_name = d.full_name || d.name || email;
+          break;
+        }
+      } else {
+        const r = await fetch(`${url}/api/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(5000),
+        });
+        if (r.ok) {
+          const d = await r.json();
+          email     = (d.email || d.user?.email)?.toLowerCase().trim();
+          full_name = d.full_name || d.name || d.user?.name || email;
+          break;
+        }
       }
     } catch {}
   }
-  if (!email) return res.status(401).json({ error: 'Token could not be verified' });
+  if (!email) return res.status(401).json({ error: 'Sign-on could not be verified' });
   let user = db.prepare('SELECT * FROM users WHERE email=?').get(email);
   if (!user) {
     const userId = uuidv4(); const firmId = uuidv4();
