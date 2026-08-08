@@ -189,10 +189,12 @@
     closeAppSwitcher();
     const win = window.open('', '_blank'); // open immediately so browser allows it
     try {
-      const res = await fetch('/api/refresh', { method: 'POST' });
+      // One-time 60s code instead of a JWT in the URL — the sibling app
+      // redeems it server-to-server against our /api/auth/sso-redeem.
+      const res = await fetch('/api/auth/sso-code', { method: 'POST' });
       if (res.ok) {
-        const { token } = await res.json();
-        win.location.href = url + '?token=' + encodeURIComponent(token);
+        const { code } = await res.json();
+        win.location.href = url + '?sso_code=' + encodeURIComponent(code) + '&sso_from=spv';
         return;
       }
     } catch {}
